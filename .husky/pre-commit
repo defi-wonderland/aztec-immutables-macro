@@ -1,0 +1,2 @@
+aztec fmt
+yarn lint-staged
