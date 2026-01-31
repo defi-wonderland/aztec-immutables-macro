@@ -39,79 +39,25 @@ pub contract SchnorrConstantsAccount {
         hash::compute_siloed_nullifier,
         macros::functions::{external, nophasecheck, view},
         oracle::{
-            auth_witness::get_auth_witness, capsules, get_contract_instance::get_contract_instance,
+            auth_witness::get_auth_witness,
             get_nullifier_membership_witness::get_low_nullifier_membership_witness,
             notes::set_sender_for_tags,
         },
-        protocol_types::{
-            address::AztecAddress,
-            hash::poseidon2_hash,
-            traits::{Deserialize, Serialize},
-        },
+        protocol_types::{address::AztecAddress, traits::{Deserialize, Serialize}},
     };
-
-    /// Well-known capsule slot for constants storage.
-    /// Must match CONSTANTS_SLOT in TypeScript deployment code.
-    pub global CONSTANTS_SLOT: Field = 0x31415926535;
+    use initializerless::constants;
 
     /// Constants struct containing the signing public key.
     ///
     /// The key is stored as two Field elements representing the (x, y) coordinates
     /// of a point on the Grumpkin embedded curve.
     #[derive(Serialize, Deserialize)]
+    #[constants]
     pub struct Constants {
         /// X coordinate of the signing public key
         pub signing_key_x: Field,
         /// Y coordinate of the signing public key
         pub signing_key_y: Field,
-    }
-
-    impl Constants {
-        /// Loads and verifies constants from capsule storage.
-        ///
-        /// ## Security
-        ///
-        /// The capsule oracle is unconstrained, but verification against
-        /// `initialization_hash` ensures authenticity. The hash is part of
-        /// the contract address, so forging constants is computationally infeasible.
-        ///
-        /// ## Arguments
-        ///
-        /// * `address` - The contract address (usually `self.address`)
-        ///
-        /// ## Panics
-        ///
-        /// - If capsule is empty (TypeScript didn't push constants)
-        /// - If loaded constants don't match `initialization_hash`
-        pub fn load_and_verify(address: AztecAddress) -> Constants {
-            // Safety: verified against initialization_hash committed in contract address
-            let constants: Constants = unsafe { capsules::load(address, CONSTANTS_SLOT).unwrap() };
-
-            // Get contract instance to access initialization_hash
-            let instance = get_contract_instance(address);
-
-            // Recompute commitment from loaded constants
-            let serialized_constants = constants.serialize();
-            let constants_commitment = poseidon2_hash(serialized_constants);
-
-            // Verify loaded constants match what was committed in address
-            assert_eq(
-                constants_commitment,
-                instance.initialization_hash,
-                "Constants do not match initialization hash",
-            );
-
-            constants
-        }
-
-        /// Converts the constants to an EmbeddedCurvePoint for signature verification.
-        pub fn to_public_key(self) -> std::embedded_curve_ops::EmbeddedCurvePoint {
-            std::embedded_curve_ops::EmbeddedCurvePoint {
-                x: self.signing_key_x,
-                y: self.signing_key_y,
-                is_infinite: false,
-            }
-        }
     }
 
     /// Account entrypoint - executes authenticated actions.
@@ -183,7 +129,7 @@ pub contract SchnorrConstantsAccount {
     #[external("utility")]
     unconstrained fn lookup_validity(consumer: AztecAddress, inner_hash: Field) -> bool {
         // Load constants (unconstrained, no verification needed for simulation)
-        let constants: Constants = capsules::load(self.address, CONSTANTS_SLOT).unwrap();
+        let constants = Constants::load_unconstrained(self.address);
         let pub_key = constants.to_public_key();
 
         let message_hash = compute_authwit_message_hash(
