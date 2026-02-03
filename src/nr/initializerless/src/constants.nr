@@ -17,8 +17,18 @@
 /// ## What It Generates
 ///
 /// - `Serialize` implementation (if not already implemented)
-/// - `Constants::init(context: &mut PrivateContext)` - Loads and verifies constants (for private/contract_library_method)
-/// - `Constants::init_unconstrained(context: UtilityContext)` - Unconstrained load without verification (for utility functions)
+/// - `Constants::init(context: &mut PrivateContext)` - Loads and verifies constants against contract salt
+/// - `Constants::init_unconstrained(context: UtilityContext)` - Unconstrained load without verification
+///
+/// ## Verification Method
+///
+/// The capsule stores `[actual_salt, constants.serialize()]` (salt followed by serialized constants).
+/// Verification:
+/// 1. Load capsule data from storage
+/// 2. Compute `salt = poseidon2_hash(capsule_data)`
+/// 3. Verify `salt == instance.salt`
+///
+/// This allows contracts with initializers to use constants without conflicting with `initialization_hash`.
 ///
 /// ## Requirements
 ///
@@ -56,11 +66,10 @@
 /// - Generates `init_unconstrained(context: UtilityContext)` for utility functions
 ///
 /// The generated `init` function (constrained):
-/// 1. Loads constants from capsule storage (unconstrained oracle)
-/// 2. Gets the contract instance to access `initialization_hash`
-/// 3. Recomputes hash from loaded constants
-/// 4. Verifies hash matches `initialization_hash`
-/// 5. Returns verified constants
+/// 1. Loads capsule data (actual_salt followed by serialized constants)
+/// 2. Computes `salt = poseidon2_hash(capsule_data)`
+/// 3. Verifies `salt` matches `instance.salt`
+/// 4. Returns deserialized constants
 ///
 /// The generated `init_unconstrained` function (unconstrained):
 /// - Loads constants directly from capsule without verification
@@ -78,11 +87,24 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
     // Derive Serialize if not already implemented
     let serialize_impl = aztec::macros::utils::derive_serialize_if_not_implemented(s);
 
-    // Well-known capsule slot for constants storage
-    // Value: first 11 digits of pi (0x31415926535) - deterministic, collision-resistant
+    // Well-known capsule slot for constants storage (first 11 digits of pi)
     let constants_slot: Field = 0x31415926535;
 
-    // Generate the implementation with inlined slot value
+    // Compute serialized length from field types (handles nested structs, arrays, etc.)
+    // Pattern from Aztec's derive macros: noir-protocol-circuits/crates/types/src/meta/mod.nr
+    let constants_type = s.as_type();
+    let (struct_def, generics) = constants_type.as_data_type().unwrap();
+    let fields = struct_def.fields(generics);
+    let serialized_len = if fields.len() > 0 {
+        fields
+            .map(|(_, field_type, _): (Quoted, Type, Quoted)| {
+                quote { <$field_type as aztec::protocol_types::traits::Serialize>::N }
+            })
+            .join(quote { + })
+    } else {
+        quote { 0 }
+    };
+
     quote {
         $serialize_impl
         impl Constants {
@@ -90,10 +112,9 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
             ///
             /// ## How it works
             ///
-            /// 1. **Load**: Fetches serialized constants from capsule storage (unconstrained oracle)
-            /// 2. **Instance**: Gets the contract instance containing `initialization_hash`
-            /// 3. **Hash**: Recomputes `poseidon2_hash(constants.serialize())`
-            /// 4. **Verify**: Asserts computed hash equals `initialization_hash`
+            /// 1. **Load**: Fetches capsule data (actual_salt followed by serialized constants)
+            /// 2. **Hash**: Computes `salt = poseidon2_hash(capsule_data)`
+            /// 3. **Verify**: Asserts `salt` equals `instance.salt`
             ///
             /// ## Arguments
             ///
@@ -101,31 +122,38 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
             ///
             /// ## Panics
             ///
-            /// - "Constants do not match initialization hash" - wrong constants in capsule
-            /// - Unwrap panic if capsule is empty (TypeScript didn't push constants)
+            /// - "Constants do not match contract salt" - wrong constants or actual_salt in capsule
+            /// - "Constants not found in capsule" - TypeScript didn't push constants
             pub fn init(context: &mut aztec::context::PrivateContext) -> Constants {
                 let address = context.this_address();
 
-                // Safety: verified against initialization_hash committed in contract address
-                let constants: Constants = unsafe {
-                    aztec::oracle::capsules::load(address, $constants_slot).unwrap()
+                // Load capsule data: [actual_salt, serialized_constants[0], serialized_constants[1], ...]
+                // Safety: capsule_data is verified against salt committed in contract address
+                let capsule_data: [Field; 1 + $serialized_len] = unsafe {
+                    aztec::oracle::capsules::load(address, $constants_slot)
+                        .unwrap_or_else(|| panic(f"Constants not found in capsule for contract {address}"))
                 };
 
-                // Get contract instance to access initialization_hash
+                // Compute salt from entire capsule data
+                let salt = aztec::protocol_types::hash::poseidon2_hash(capsule_data);
+
+                // Get contract instance to access salt
                 let instance = aztec::oracle::get_contract_instance::get_contract_instance(address);
 
-                // Recompute commitment from loaded constants
-                let serialized_constants = aztec::protocol_types::traits::Serialize::serialize(constants);
-                let constants_commitment = aztec::protocol_types::hash::poseidon2_hash(serialized_constants);
-
-                // Verify loaded constants match what was committed in address
+                // Verify derived salt matches contract instance salt
                 assert_eq(
-                    constants_commitment,
-                    instance.initialization_hash,
-                    "Constants do not match initialization hash",
+                    salt,
+                    instance.salt,
+                    "Constants do not match contract salt",
                 );
 
-                constants
+                // Extract serialized constants (skip first element which is actual_salt)
+                let mut serialized_constants: [Field; $serialized_len] = [0; $serialized_len];
+                for i in 0..$serialized_len {
+                    serialized_constants[i] = capsule_data[i + 1];
+                }
+
+                aztec::protocol_types::traits::Deserialize::deserialize(serialized_constants)
             }
 
             /// Loads constants from capsule storage without verification.
@@ -141,10 +169,21 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
             ///
             /// ## Panics
             ///
-            /// - Unwrap panic if capsule is empty (TypeScript didn't push constants)
+            /// - "Constants not found in capsule" - TypeScript didn't push constants
             pub unconstrained fn init_unconstrained(context: aztec::context::UtilityContext) -> Constants {
                 let address = context.this_address();
-                aztec::oracle::capsules::load(address, $constants_slot).unwrap()
+
+                // Load capsule data: [actual_salt, serialized_constants[0], serialized_constants[1], ...]
+                let capsule_data: [Field; 1 + $serialized_len] = aztec::oracle::capsules::load(address, $constants_slot)
+                    .unwrap_or_else(|| panic(f"Constants not found in capsule for contract {address}"));
+
+                // Extract serialized constants (skip first element which is actual_salt)
+                let mut serialized_constants: [Field; $serialized_len] = [0; $serialized_len];
+                for i in 0..$serialized_len {
+                    serialized_constants[i] = capsule_data[i + 1];
+                }
+
+                aztec::protocol_types::traits::Deserialize::deserialize(serialized_constants)
             }
         }
     }
