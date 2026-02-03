@@ -37,7 +37,7 @@
 //! ```noir
 //! use initializerless::constants;
 //!
-//! #[derive(Serialize, Deserialize)]
+//! #[derive(Deserialize)]
 //! #[constants]
 //! pub struct Constants {
 //!     pub admin_key: Field,
@@ -71,7 +71,7 @@ use aztec::macros::aztec;
 pub contract ConstantsContract {
     use aztec::{
         macros::{functions::{external, initializer, noinitcheck, view}, storage::storage},
-        protocol_types::traits::{Deserialize, Serialize},
+        protocol_types::traits::Deserialize,
         state_vars::PublicMutable,
     };
     use initializerless::constants;
@@ -89,7 +89,7 @@ pub contract ConstantsContract {
     /// which loads from capsule storage and verifies against `initialization_hash`.
     ///
     /// ## Requirements
-    /// - MUST have `#[derive(Serialize, Deserialize)]` BEFORE `#[constants]`
+    /// - MUST have `#[derive(Deserialize)]` BEFORE `#[constants]` (Serialize is auto-derived)
     /// - All fields must be serializable (Field, integers, nested structs with derives)
     ///
     /// ## Customization
@@ -97,7 +97,7 @@ pub contract ConstantsContract {
     /// - Account contracts: `signing_public_key: Point`
     /// - Token contracts: `admin: AztecAddress, decimals: u8`
     /// - Protocol contracts: `fee_recipient: AztecAddress, fee_bps: u64`
-    #[derive(Serialize, Deserialize)]
+    #[derive(Deserialize)]
     #[constants]
     pub struct Constants {
         /// X coordinate of the signing public key (Grumpkin curve)

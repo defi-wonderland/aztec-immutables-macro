@@ -43,7 +43,7 @@ pub contract SchnorrConstantsAccount {
             get_nullifier_membership_witness::get_low_nullifier_membership_witness,
             notes::set_sender_for_tags,
         },
-        protocol_types::{address::AztecAddress, traits::{Deserialize, Serialize}},
+        protocol_types::{address::AztecAddress, traits::Deserialize},
     };
     use initializerless::constants;
 
@@ -51,7 +51,7 @@ pub contract SchnorrConstantsAccount {
     ///
     /// The key is stored as two Field elements representing the (x, y) coordinates
     /// of a point on the Grumpkin embedded curve.
-    #[derive(Serialize, Deserialize)]
+    #[derive(Deserialize)]
     #[constants]
     pub struct Constants {
         /// X coordinate of the signing public key

@@ -6,7 +6,7 @@
 /// ## Usage
 ///
 /// ```noir
-/// #[derive(Serialize, Deserialize)]
+/// #[derive(Deserialize)]
 /// #[constants]
 /// pub struct Constants {
 ///     pub signing_key_x: Field,
@@ -14,18 +14,16 @@
 /// }
 /// ```
 ///
-/// **Important**: `#[derive(Serialize, Deserialize)]` must come BEFORE `#[constants]`
-/// so the traits are implemented before the macro validates them.
-///
 /// ## What It Generates
 ///
+/// - `Serialize` implementation (if not already implemented)
 /// - `Constants::init(context: &mut PrivateContext)` - Loads and verifies constants (for private/contract_library_method)
 /// - `Constants::init_unconstrained(context: UtilityContext)` - Unconstrained load without verification (for utility functions)
 ///
 /// ## Requirements
 ///
 /// - The struct MUST be named `Constants`
-/// - `#[derive(Serialize, Deserialize)]` MUST come BEFORE `#[constants]`
+/// - `#[derive(Deserialize)]` is required (for capsule loading)
 ///
 /// ## Future Improvements (for Aztec protocol)
 ///
@@ -53,9 +51,7 @@
 ///
 /// This macro:
 /// - Validates the struct is named `Constants`
-/// - Validates no conflicting `#[storage]` attribute
-/// - Validates struct is not empty
-/// - Validates all fields implement `Serialize` (catches nested structs)
+/// - Derives `Serialize` if not already implemented
 /// - Generates `init(context: &mut PrivateContext)` for private/contract_library_method functions
 /// - Generates `init_unconstrained(context: UtilityContext)` for utility functions
 ///
@@ -79,30 +75,16 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
         )
     }
 
-    // Validate all fields implement Serialize (catches nested structs without derives)
-    let serialize_constraint = quote { aztec::protocol_types::traits::Serialize }.as_trait_constraint();
-    for field in fields {
-        let (field_name, field_type, _) = field;
-        assert(
-            field_type.implements(serialize_constraint),
-            f"Field '{field_name}' of type {field_type} does not implement Serialize. Add #[derive(Serialize)] to nested structs.",
-        );
-    }
-
-    // Note: We don't check if the Constants struct itself implements Serialize/Deserialize
-    // because the #[derive] macro may not have completed before this macro runs.
-    // The field-level checks above catch nested structs, and the compiler will error
-    // naturally if the traits aren't implemented when serialize()/deserialize() is called.
-    // TODO: consider using aztec::macros::utils::derive_serialize_if_not_implemented
-    // TODO: consider creating derive_deserialize_if_not_implemented
+    // Derive Serialize if not already implemented
+    let serialize_impl = aztec::macros::utils::derive_serialize_if_not_implemented(s);
 
     // Well-known capsule slot for constants storage
     // Value: first 11 digits of pi (0x31415926535) - deterministic, collision-resistant
-    // TODO: consider deriving from poseidon2_hash("CONSTANTS_SLOT") or similar
     let constants_slot: Field = 0x31415926535;
 
     // Generate the implementation with inlined slot value
     quote {
+        $serialize_impl
         impl Constants {
             /// Loads and verifies constants from capsule storage.
             ///
@@ -133,7 +115,7 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
                 let instance = aztec::oracle::get_contract_instance::get_contract_instance(address);
 
                 // Recompute commitment from loaded constants
-                let serialized_constants = constants.serialize();
+                let serialized_constants = aztec::protocol_types::traits::Serialize::serialize(constants);
                 let constants_commitment = aztec::protocol_types::hash::poseidon2_hash(serialized_constants);
 
                 // Verify loaded constants match what was committed in address
