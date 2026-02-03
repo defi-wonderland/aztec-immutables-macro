@@ -2,7 +2,7 @@
 //!
 //! An account contract using Schnorr signatures for authentication with the
 //! **initializerless constants** pattern. The signing public key is committed
-//! via `initialization_hash` rather than stored in private immutable storage.
+//! via `salt` rather than stored in private immutable storage.
 //!
 //! ## Benefits over Standard SchnorrAccount
 //!
@@ -12,18 +12,20 @@
 //!
 //! ## How It Works
 //!
-//! 1. **Deployment**: TypeScript computes `initialization_hash = poseidon2_hash(signing_key_x, signing_key_y)`
-//! 2. **Registration**: Contract is registered and published with this hash
-//! 3. **Capsule**: The serialized key is stored in capsule storage for runtime access
-//! 4. **Verification**: Each auth call loads the key from capsule and verifies against `initialization_hash`
+//! 1. **Deployment**: TypeScript computes `salt = poseidon2_hash([actual_salt, public_key.x, public_key.y])`
+//! 2. **Registration**: Contract is registered and published with this salt
+//! 3. **Capsule**: The actual_salt and serialized key are stored in capsule storage for runtime access
+//! 4. **Verification**: Each auth call loads from capsule and verifies against `salt`
 //!
 //! ## Security Model
 //!
 //! The signing key is loaded from an unconstrained oracle (capsule storage), but security
 //! is guaranteed because:
-//! - `initialization_hash` is part of the contract address computation
+//! - `salt` is part of the contract address computation
 //! - An attacker cannot forge a key that produces the same contract address
-//! - If wrong key is provided, the poseidon2 hash won't match `initialization_hash`
+//! - If wrong key is provided, the poseidon2 hash won't match `salt`
+
+mod public_key;
 
 use aztec::macros::aztec;
 
@@ -45,30 +47,17 @@ pub contract SchnorrConstantsAccount {
         },
         protocol_types::{address::AztecAddress, traits::Deserialize},
     };
+
+    use crate::public_key::PublicKey;
+    
     use initializerless::constants;
 
     /// Constants struct containing the signing public key.
-    ///
-    /// The key is stored as two Field elements representing the (x, y) coordinates
-    /// of a point on the Grumpkin embedded curve.
     #[derive(Deserialize)]
     #[constants]
     pub struct Constants {
-        /// X coordinate of the signing public key
-        pub signing_key_x: Field,
-        /// Y coordinate of the signing public key
-        pub signing_key_y: Field,
-    }
-
-    impl Constants {
-        /// Converts the signing key constants to an EmbeddedCurvePoint for signature verification.
-        fn to_public_key(self) -> std::embedded_curve_ops::EmbeddedCurvePoint {
-            std::embedded_curve_ops::EmbeddedCurvePoint {
-                x: self.signing_key_x,
-                y: self.signing_key_y,
-                is_infinite: false,
-            }
-        }
+        /// The signing public key (x, y coordinates on the Grumpkin curve)
+        pub public_key: PublicKey,
     }
 
     /// Account entrypoint - executes authenticated actions.
@@ -110,7 +99,7 @@ pub contract SchnorrConstantsAccount {
     fn is_valid_impl(context: &mut PrivateContext, outer_hash: Field) -> bool {
         // Load and verify public key from constants
         let constants = Constants::init(context);
-        let pub_key = constants.to_public_key();
+        let public_key = constants.public_key;
 
         // Load auth witness (signature)
         // Safety: The witness is only used as a "magical value" that makes the
@@ -120,6 +109,12 @@ pub contract SchnorrConstantsAccount {
         for i in 0..64 {
             signature[i] = witness[i] as u8;
         }
+
+        let pub_key = std::embedded_curve_ops::EmbeddedCurvePoint {
+            x: public_key.x,
+            y: public_key.y,
+            is_infinite: false,
+        };
 
         // Verify Schnorr signature of the payload
         schnorr::verify_signature(pub_key, signature, outer_hash.to_be_bytes::<32>())
@@ -141,7 +136,7 @@ pub contract SchnorrConstantsAccount {
     unconstrained fn lookup_validity(consumer: AztecAddress, inner_hash: Field) -> bool {
         // Load constants (unconstrained, no verification needed for simulation)
         let constants = Constants::init_unconstrained(self.context);
-        let pub_key = constants.to_public_key();
+        let public_key = constants.public_key;
 
         let message_hash = compute_authwit_message_hash(
             consumer,
@@ -155,6 +150,12 @@ pub contract SchnorrConstantsAccount {
         for i in 0..64 {
             signature[i] = witness[i] as u8;
         }
+
+        let pub_key = std::embedded_curve_ops::EmbeddedCurvePoint {
+            x: public_key.x,
+            y: public_key.y,
+            is_infinite: false,
+        };
 
         let valid_in_private =
             schnorr::verify_signature(pub_key, signature, message_hash.to_be_bytes::<32>());
@@ -175,6 +176,7 @@ pub contract SchnorrConstantsAccount {
     #[external("private")]
     fn get_signing_public_key() -> pub (Field, Field) {
         let constants = Constants::init(self.context);
-        (constants.signing_key_x, constants.signing_key_y)
+        let public_key = constants.public_key;
+        (public_key.x, public_key.y)
     }
 }
