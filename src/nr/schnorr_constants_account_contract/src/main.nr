@@ -60,6 +60,17 @@ pub contract SchnorrConstantsAccount {
         pub signing_key_y: Field,
     }
 
+    impl Constants {
+        /// Converts the signing key constants to an EmbeddedCurvePoint for signature verification.
+        fn to_public_key(self) -> std::embedded_curve_ops::EmbeddedCurvePoint {
+            std::embedded_curve_ops::EmbeddedCurvePoint {
+                x: self.signing_key_x,
+                y: self.signing_key_y,
+                is_infinite: false,
+            }
+        }
+    }
+
     /// Account entrypoint - executes authenticated actions.
     ///
     /// @dev If you globally change the entrypoint signature, update account_entrypoint.ts

@@ -21,7 +21,6 @@
 ///
 /// - `Constants::init(context: &mut PrivateContext)` - Loads and verifies constants (for private/contract_library_method)
 /// - `Constants::init_unconstrained(context: UtilityContext)` - Unconstrained load without verification (for utility functions)
-/// - `Constants::to_public_key(self)` - (Only if struct has `signing_key_x` and `signing_key_y` fields)
 ///
 /// ## Requirements
 ///
@@ -59,7 +58,6 @@
 /// - Validates all fields implement `Serialize` (catches nested structs)
 /// - Generates `init(context: &mut PrivateContext)` for private/contract_library_method functions
 /// - Generates `init_unconstrained(context: UtilityContext)` for utility functions
-/// - Generates `to_public_key()` if struct has `signing_key_x` and `signing_key_y` fields
 ///
 /// The generated `init` function (constrained):
 /// 1. Loads constants from capsule storage (unconstrained oracle)
@@ -115,26 +113,6 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
     // Value: first 11 digits of pi (0x31415926535) - deterministic, collision-resistant
     // TODO: consider deriving from poseidon2_hash("CONSTANTS_SLOT") or similar
     let constants_slot: Field = 0x31415926535;
-
-    // Check if struct has signing_key_x and signing_key_y fields (for account contracts)
-    // If so, generate a to_public_key() helper
-    let has_signing_key_x = fields.any(|(name, typ, _)| (name == quote { signing_key_x }) & typ.is_field());
-    let has_signing_key_y = fields.any(|(name, typ, _)| (name == quote { signing_key_y }) & typ.is_field());
-    let to_public_key_impl = if has_signing_key_x & has_signing_key_y {
-        quote {
-            /// Converts the signing key constants to an EmbeddedCurvePoint for signature verification.
-            /// Auto-generated because struct has `signing_key_x` and `signing_key_y` fields.
-            pub fn to_public_key(self) -> std::embedded_curve_ops::EmbeddedCurvePoint {
-                std::embedded_curve_ops::EmbeddedCurvePoint {
-                    x: self.signing_key_x,
-                    y: self.signing_key_y,
-                    is_infinite: false,
-                }
-            }
-        }
-    } else {
-        quote {}
-    };
 
     // Generate the implementation with inlined slot value
     quote {
@@ -199,8 +177,6 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
                 let address = context.this_address();
                 aztec::oracle::capsules::load(address, $constants_slot).unwrap()
             }
-
-            $to_public_key_impl
         }
     }
 }
