@@ -19,8 +19,8 @@
 ///
 /// ## What It Generates
 ///
-/// - `Constants::init(address)` - Loads and verifies constants (for private/public functions)
-/// - `Constants::init_unconstrained(address)` - Unconstrained load without verification (for utility functions)
+/// - `Constants::init(context: &mut PrivateContext)` - Loads and verifies constants (for private/contract_library_method)
+/// - `Constants::init_unconstrained(context: UtilityContext)` - Unconstrained load without verification (for utility functions)
 /// - `Constants::to_public_key(self)` - (Only if struct has `signing_key_x` and `signing_key_y` fields)
 ///
 /// ## Requirements
@@ -32,14 +32,14 @@
 ///
 /// Currently, constants must be explicitly loaded in each function:
 /// ```noir
-/// let constants = Constants::init(self.address);
+/// let constants = Constants::init(context);
 /// let key = constants.signing_key_x;
 /// ```
 ///
 /// If integrated into aztec-packages, this could work like `#[storage]`:
 /// 1. Add a `HAS_CONSTANTS` comptime registry (similar to storage detection)
 /// 2. Modify `#[external]`/`#[internal]` function macros to check for constants
-/// 3. Auto-inject `let constants = Constants::init(context.this_address());`
+/// 3. Auto-inject `let constants = Constants::init(context);`
 /// 4. Make available as `self.constants`
 ///
 /// This would enable direct access:
@@ -57,8 +57,8 @@
 /// - Validates no conflicting `#[storage]` attribute
 /// - Validates struct is not empty
 /// - Validates all fields implement `Serialize` (catches nested structs)
-/// - Generates `init()` for constrained contexts (private/public)
-/// - Generates `init_unconstrained()` for unconstrained contexts (utility)
+/// - Generates `init(context: &mut PrivateContext)` for private/contract_library_method functions
+/// - Generates `init_unconstrained(context: UtilityContext)` for utility functions
 /// - Generates `to_public_key()` if struct has `signing_key_x` and `signing_key_y` fields
 ///
 /// The generated `init` function (constrained):
@@ -150,13 +150,15 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
             ///
             /// ## Arguments
             ///
-            /// * `address` - The contract address to load constants for (usually `self.address`)
+            /// * `context` - The PrivateContext reference (use in private functions and contract_library_method)
             ///
             /// ## Panics
             ///
             /// - "Constants do not match initialization hash" - wrong constants in capsule
             /// - Unwrap panic if capsule is empty (TypeScript didn't push constants)
-            pub fn init(address: aztec::protocol_types::address::AztecAddress) -> Constants {
+            pub fn init(context: &mut aztec::context::PrivateContext) -> Constants {
+                let address = context.this_address();
+
                 // Safety: verified against initialization_hash committed in contract address
                 let constants: Constants = unsafe {
                     aztec::oracle::capsules::load(address, $constants_slot).unwrap()
@@ -184,16 +186,17 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
             /// **WARNING**: This is unconstrained and provides NO security guarantees.
             /// Use only in utility/unconstrained functions where verification is not possible.
             ///
-            /// For constrained contexts (private/public functions), use `init` instead.
+            /// For constrained contexts (private functions), use `init` instead.
             ///
             /// ## Arguments
             ///
-            /// * `address` - The contract address to load constants for
+            /// * `context` - The UtilityContext (use in utility functions)
             ///
             /// ## Panics
             ///
             /// - Unwrap panic if capsule is empty (TypeScript didn't push constants)
-            pub unconstrained fn init_unconstrained(address: aztec::protocol_types::address::AztecAddress) -> Constants {
+            pub unconstrained fn init_unconstrained(context: aztec::context::UtilityContext) -> Constants {
+                let address = context.this_address();
                 aztec::oracle::capsules::load(address, $constants_slot).unwrap()
             }
 

@@ -46,7 +46,7 @@
 //!
 //! #[external("private")]
 //! fn my_function() {
-//!     let constants = Constants::init(self.address);
+//!     let constants = Constants::init(self.context);
 //!     // Use constants.admin_key, constants.protocol_fee, etc.
 //! }
 //! ```
@@ -85,7 +85,7 @@ pub contract ConstantsContract {
 
     /// Developer-defined constants struct.
     ///
-    /// The `#[constants]` macro auto-generates `Constants::init(address)`
+    /// The `#[constants]` macro auto-generates `Constants::init(context)`
     /// which loads from capsule storage and verifies against `initialization_hash`.
     ///
     /// ## Requirements
@@ -117,7 +117,7 @@ pub contract ConstantsContract {
     #[external("private")]
     #[noinitcheck]
     fn get_signing_key() -> pub (Field, Field) {
-        let constants = Constants::init(self.address);
+        let constants = Constants::init(self.context);
         (constants.signing_key_x, constants.signing_key_y)
     }
 
@@ -162,7 +162,7 @@ pub contract ConstantsContract {
     #[external("private")]
     fn verify_constants_and_increment() {
         // Load and verify constants from capsule (this happens in private context)
-        let _constants = Constants::init(self.address);
+        let _constants = Constants::init(self.context);
 
         // Enqueue a public call to interact with storage
         // This demonstrates that after verifying constants privately,

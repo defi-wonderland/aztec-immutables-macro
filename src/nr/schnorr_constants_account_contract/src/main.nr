@@ -98,7 +98,7 @@ pub contract SchnorrConstantsAccount {
     #[contract_library_method]
     fn is_valid_impl(context: &mut PrivateContext, outer_hash: Field) -> bool {
         // Load and verify public key from constants
-        let constants = Constants::init(context.this_address());
+        let constants = Constants::init(context);
         let pub_key = constants.to_public_key();
 
         // Load auth witness (signature)
@@ -129,7 +129,7 @@ pub contract SchnorrConstantsAccount {
     #[external("utility")]
     unconstrained fn lookup_validity(consumer: AztecAddress, inner_hash: Field) -> bool {
         // Load constants (unconstrained, no verification needed for simulation)
-        let constants = Constants::init_unconstrained(self.address);
+        let constants = Constants::init_unconstrained(self.context);
         let pub_key = constants.to_public_key();
 
         let message_hash = compute_authwit_message_hash(
@@ -163,7 +163,7 @@ pub contract SchnorrConstantsAccount {
     /// This is a utility function to verify the constants are loaded correctly.
     #[external("private")]
     fn get_signing_public_key() -> pub (Field, Field) {
-        let constants = Constants::init(self.address);
+        let constants = Constants::init(self.context);
         (constants.signing_key_x, constants.signing_key_y)
     }
 }
