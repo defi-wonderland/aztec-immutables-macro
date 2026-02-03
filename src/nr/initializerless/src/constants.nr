@@ -19,8 +19,8 @@
 ///
 /// ## What It Generates
 ///
-/// - `Constants::load_and_verify(address)` - Loads and verifies constants (for private/public functions)
-/// - `Constants::load_unconstrained(address)` - Unconstrained load without verification (for utility functions)
+/// - `Constants::init(address)` - Loads and verifies constants (for private/public functions)
+/// - `Constants::init_unconstrained(address)` - Unconstrained load without verification (for utility functions)
 /// - `Constants::to_public_key(self)` - (Only if struct has `signing_key_x` and `signing_key_y` fields)
 ///
 /// ## Requirements
@@ -32,14 +32,14 @@
 ///
 /// Currently, constants must be explicitly loaded in each function:
 /// ```noir
-/// let constants = Constants::load_and_verify(self.address);
+/// let constants = Constants::init(self.address);
 /// let key = constants.signing_key_x;
 /// ```
 ///
 /// If integrated into aztec-packages, this could work like `#[storage]`:
 /// 1. Add a `HAS_CONSTANTS` comptime registry (similar to storage detection)
 /// 2. Modify `#[external]`/`#[internal]` function macros to check for constants
-/// 3. Auto-inject `let constants = Constants::load_and_verify(context.this_address());`
+/// 3. Auto-inject `let constants = Constants::init(context.this_address());`
 /// 4. Make available as `self.constants`
 ///
 /// This would enable direct access:
@@ -57,18 +57,18 @@
 /// - Validates no conflicting `#[storage]` attribute
 /// - Validates struct is not empty
 /// - Validates all fields implement `Serialize` (catches nested structs)
-/// - Generates `load_and_verify()` for constrained contexts (private/public)
-/// - Generates `load_unconstrained()` for unconstrained contexts (utility)
+/// - Generates `init()` for constrained contexts (private/public)
+/// - Generates `init_unconstrained()` for unconstrained contexts (utility)
 /// - Generates `to_public_key()` if struct has `signing_key_x` and `signing_key_y` fields
 ///
-/// The generated `load_and_verify` function (constrained):
+/// The generated `init` function (constrained):
 /// 1. Loads constants from capsule storage (unconstrained oracle)
 /// 2. Gets the contract instance to access `initialization_hash`
 /// 3. Recomputes hash from loaded constants
 /// 4. Verifies hash matches `initialization_hash`
 /// 5. Returns verified constants
 ///
-/// The generated `load_unconstrained` function (unconstrained):
+/// The generated `init_unconstrained` function (unconstrained):
 /// - Loads constants directly from capsule without verification
 /// - Use only in utility functions where verification is not possible
 pub comptime fn constants(s: TypeDefinition) -> Quoted {
@@ -156,7 +156,7 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
             ///
             /// - "Constants do not match initialization hash" - wrong constants in capsule
             /// - Unwrap panic if capsule is empty (TypeScript didn't push constants)
-            pub fn load_and_verify(address: aztec::protocol_types::address::AztecAddress) -> Constants {
+            pub fn init(address: aztec::protocol_types::address::AztecAddress) -> Constants {
                 // Safety: verified against initialization_hash committed in contract address
                 let constants: Constants = unsafe {
                     aztec::oracle::capsules::load(address, $constants_slot).unwrap()
@@ -184,7 +184,7 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
             /// **WARNING**: This is unconstrained and provides NO security guarantees.
             /// Use only in utility/unconstrained functions where verification is not possible.
             ///
-            /// For constrained contexts (private/public functions), use `load_and_verify` instead.
+            /// For constrained contexts (private/public functions), use `init` instead.
             ///
             /// ## Arguments
             ///
@@ -193,7 +193,7 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
             /// ## Panics
             ///
             /// - Unwrap panic if capsule is empty (TypeScript didn't push constants)
-            pub unconstrained fn load_unconstrained(address: aztec::protocol_types::address::AztecAddress) -> Constants {
+            pub unconstrained fn init_unconstrained(address: aztec::protocol_types::address::AztecAddress) -> Constants {
                 aztec::oracle::capsules::load(address, $constants_slot).unwrap()
             }
 

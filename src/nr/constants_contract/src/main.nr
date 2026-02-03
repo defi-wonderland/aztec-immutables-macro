@@ -26,7 +26,7 @@
 //! 2. **Capsule Storage**: The TypeScript deployment code pushes the serialized constants
 //!    to the PXE's capsule storage at a well-known slot.
 //!
-//! 3. **Runtime Verification**: When `Constants::load_and_verify()` is called:
+//! 3. **Runtime Verification**: When `Constants::init()` is called:
 //!    - Constants are loaded from capsule storage (unconstrained oracle)
 //!    - The hash is recomputed from the loaded values
 //!    - The hash is verified against `initialization_hash` from the contract instance
@@ -46,7 +46,7 @@
 //!
 //! #[external("private")]
 //! fn my_function() {
-//!     let constants = Constants::load_and_verify(self.address);
+//!     let constants = Constants::init(self.address);
 //!     // Use constants.admin_key, constants.protocol_fee, etc.
 //! }
 //! ```
@@ -85,7 +85,7 @@ pub contract ConstantsContract {
 
     /// Developer-defined constants struct.
     ///
-    /// The `#[constants]` macro auto-generates `Constants::load_and_verify(address)`
+    /// The `#[constants]` macro auto-generates `Constants::init(address)`
     /// which loads from capsule storage and verifies against `initialization_hash`.
     ///
     /// ## Requirements
@@ -117,7 +117,7 @@ pub contract ConstantsContract {
     #[external("private")]
     #[noinitcheck]
     fn get_signing_key() -> pub (Field, Field) {
-        let constants = Constants::load_and_verify(self.address);
+        let constants = Constants::init(self.address);
         (constants.signing_key_x, constants.signing_key_y)
     }
 
@@ -162,7 +162,7 @@ pub contract ConstantsContract {
     #[external("private")]
     fn verify_constants_and_increment() {
         // Load and verify constants from capsule (this happens in private context)
-        let _constants = Constants::load_and_verify(self.address);
+        let _constants = Constants::init(self.address);
 
         // Enqueue a public call to interact with storage
         // This demonstrates that after verifying constants privately,
