@@ -79,12 +79,6 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
         )
     }
 
-    // Check for conflicting attributes
-    assert(
-        !s.has_named_attribute("storage"),
-        "Cannot apply both #[constants] and #[storage] to the same struct.",
-    );
-
     // Check struct is not empty
     let fields = s.fields_as_written();
     assert(
