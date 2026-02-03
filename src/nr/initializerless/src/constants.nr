@@ -22,8 +22,8 @@
 ///
 /// ## Verification Method
 ///
-/// The capsule stores `[actual_salt, constants.serialize()]` (salt followed by serialized constants).
-/// Verification:
+/// The capsule stores a flat array: `[actual_salt, field_0, field_1, ...]` where `field_N` are the
+/// serialized constant fields. Verification:
 /// 1. Load capsule data from storage
 /// 2. Compute `salt = poseidon2_hash(capsule_data)`
 /// 3. Verify `salt == instance.salt`
@@ -33,7 +33,7 @@
 /// ## Requirements
 ///
 /// - The struct MUST be named `Constants`
-/// - `#[derive(Deserialize)]` is required (for capsule loading)
+/// - `#[derive(Deserialize)]` is required (for deserializing constants from capsule data)
 ///
 /// ## Future Improvements (for Aztec protocol)
 ///
@@ -87,8 +87,8 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
     // Derive Serialize if not already implemented
     let serialize_impl = aztec::macros::utils::derive_serialize_if_not_implemented(s);
 
-    // Well-known capsule slot for constants storage (first 11 digits of pi)
-    let constants_slot: Field = 0x31415926535;
+    // Poseidon2 hash of 'CONSTANTS_SLOT': poseidon2_hash_bytes("CONSTANTS_SLOT".as_bytes());
+    let CONSTANTS_SLOT: Field = 0x257f7fa8d0b607b4f584f2aa6480ae86716203481e2802444cf05a289cc85b3a;
 
     // Compute serialized length from field types (handles nested structs, arrays, etc.)
     // Pattern from Aztec's derive macros: noir-protocol-circuits/crates/types/src/meta/mod.nr
@@ -130,7 +130,7 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
                 // Load capsule data: [actual_salt, serialized_constants[0], serialized_constants[1], ...]
                 // Safety: capsule_data is verified against salt committed in contract address
                 let capsule_data: [Field; 1 + $serialized_len] = unsafe {
-                    aztec::oracle::capsules::load(address, $constants_slot)
+                    aztec::oracle::capsules::load(address, $CONSTANTS_SLOT)
                         .unwrap_or_else(|| panic(f"Constants not found in capsule for contract {address}"))
                 };
 
@@ -174,7 +174,7 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
                 let address = context.this_address();
 
                 // Load capsule data: [actual_salt, serialized_constants[0], serialized_constants[1], ...]
-                let capsule_data: [Field; 1 + $serialized_len] = aztec::oracle::capsules::load(address, $constants_slot)
+                let capsule_data: [Field; 1 + $serialized_len] = aztec::oracle::capsules::load(address, $CONSTANTS_SLOT)
                     .unwrap_or_else(|| panic(f"Constants not found in capsule for contract {address}"));
 
                 // Extract serialized constants (skip first element which is actual_salt)
