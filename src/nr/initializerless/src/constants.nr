@@ -79,13 +79,6 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
         )
     }
 
-    // Check struct is not empty
-    let fields = s.fields_as_written();
-    assert(
-        fields.len() > 0,
-        "Constants struct cannot be empty. Add at least one field.",
-    );
-
     // Validate all fields implement Serialize (catches nested structs without derives)
     let serialize_constraint = quote { aztec::protocol_types::traits::Serialize }.as_trait_constraint();
     for field in fields {
