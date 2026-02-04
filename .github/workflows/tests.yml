@@ -35,6 +35,9 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile
 
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v2
+
       - name: Detect Aztec version
         id: aztec-version
         run: |
@@ -44,15 +47,22 @@ jobs:
 
       - name: Install Aztec CLI
         run: |
-          curl -s https://install.aztec.network > tmp.sh
-          bash tmp.sh <<< yes "yes"
+          INSTALL_URL="https://install.aztec.network/${{ steps.aztec-version.outputs.version }}/"
+          echo "Installing from: $INSTALL_URL"
+          curl -sL $INSTALL_URL > tmp.sh
+          VERSION=${{ steps.aztec-version.outputs.version }} bash tmp.sh <<< yes "yes"
 
       - name: Update path
         run: echo "/home/runner/.aztec/bin" >> $GITHUB_PATH
 
-      - name: Update Aztec
+      - name: Set Aztec version
         run: |
-          aztec-up ${{ steps.aztec-version.outputs.version }}
+          VERSION=${{ steps.aztec-version.outputs.version }} aztec-up
+
+      # This is a temporary hack to fix a problem with v3 releases.
+      - name: Manually tag the aztec version as `latest`
+        run: |
+          docker tag aztecprotocol/aztec:${{ steps.aztec-version.outputs.version }} aztecprotocol/aztec:latest
 
       - name: Cache Noir compilation artifacts
         id: cache-noir
