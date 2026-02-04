@@ -49,7 +49,7 @@ pub contract SchnorrConstantsAccount {
     };
 
     use crate::public_key::PublicKey;
-    
+
     use initializerless::constants;
 
     /// Constants struct containing the signing public key.

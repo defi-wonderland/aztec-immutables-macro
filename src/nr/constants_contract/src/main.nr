@@ -1,7 +1,7 @@
 //! # Initializerless Constants Pattern
 //!
 //! This module demonstrates the **initializerless constants** pattern for Aztec Noir contracts.
-//! Constants are immutable values committed to the contract address via `initialization_hash`,
+//! Constants are immutable values committed to the contract address via `salt`,
 //! eliminating the need for an initializer function for contracts that only need constant values.
 //!
 //! ## Why Use This Pattern?
@@ -13,23 +13,24 @@
 //! - Constants are stored separately from the contract identity
 //!
 //! The initializerless pattern:
-//! - Commits constants directly in the contract address via `initialization_hash`
+//! - Commits constants directly in the contract address via `salt`
 //! - No initializer needed for purely constant contracts
 //! - Constants are cryptographically bound to the contract's identity
 //! - Comparable gate cost to storage (~1200 gates difference in benchmarks)
 //!
 //! ## How It Works
 //!
-//! 1. **Deployment**: Constants are serialized and hashed. This hash becomes part of
-//!    `initialization_hash` which is used to compute the contract address.
+//! 1. **Deployment**: TypeScript generates a random `actual_salt`, computes
+//!    `salt = poseidon2_hash([actual_salt, ...serialized_constants])`, and creates
+//!    the contract instance with this derived salt.
 //!
-//! 2. **Capsule Storage**: The TypeScript deployment code pushes the serialized constants
+//! 2. **Capsule Storage**: The TypeScript deployment code pushes `[actual_salt, ...constants]`
 //!    to the PXE's capsule storage at a well-known slot.
 //!
 //! 3. **Runtime Verification**: When `Constants::init()` is called:
-//!    - Constants are loaded from capsule storage (unconstrained oracle)
-//!    - The hash is recomputed from the loaded values
-//!    - The hash is verified against `initialization_hash` from the contract instance
+//!    - Capsule data `[actual_salt, ...constants]` is loaded (unconstrained oracle)
+//!    - The hash is recomputed: `poseidon2_hash(capsule_data)`
+//!    - The hash is verified against `salt` from the contract instance
 //!    - If verification passes, the constants are guaranteed to be authentic
 //!
 //! ## Usage Example
@@ -55,11 +56,11 @@
 //!
 //! This contract also demonstrates that constants can coexist with `#[storage]`.
 //! Both patterns use different mechanisms:
-//! - Constants: verified against `initialization_hash`
+//! - Constants: verified against `salt`
 //! - Storage: managed via state tree and the `#[storage]` macro
 //!
-//! When using both, the `initialization_hash` is computed from both the initializer
-//! arguments AND the constants struct.
+//! When using both, the deployer must compute `salt` from both the actual_salt
+//! AND the constants struct for verification to succeed.
 
 use aztec::macros::aztec;
 
@@ -86,7 +87,7 @@ pub contract ConstantsContract {
     /// Developer-defined constants struct.
     ///
     /// The `#[constants]` macro auto-generates `Constants::init(context)`
-    /// which loads from capsule storage and verifies against `initialization_hash`.
+    /// which loads from capsule storage and verifies against `salt`.
     ///
     /// ## Requirements
     /// - MUST have `#[derive(Deserialize)]` BEFORE `#[constants]` (Serialize is auto-derived)
@@ -113,7 +114,7 @@ pub contract ConstantsContract {
     /// `#[noinitcheck]` is required for initializerless deployment because:
     /// - Without an initializer tx, the deployment nullifier doesn't exist
     /// - The default init check would fail when looking for that nullifier
-    /// - Constants verification via `initialization_hash` provides equivalent security
+    /// - Constants verification via `salt` provides equivalent security
     #[external("private")]
     #[noinitcheck]
     fn get_signing_key() -> pub (Field, Field) {
@@ -129,9 +130,9 @@ pub contract ConstantsContract {
     /// This sets up mutable storage while constants are handled separately via capsules.
     ///
     /// Note: Even with an initializer, the constants pattern still works because:
-    /// - Constants verification uses initialization_hash from contract instance
-    /// - The deployer must compute initialization_hash from BOTH the initializer args
-    ///   AND the constants struct
+    /// - Constants verification uses salt from contract instance
+    /// - The deployer must compute salt from BOTH the actual_salt
+    ///   AND the serialized constants struct
     #[external("public")]
     #[initializer]
     fn initialize(initial_counter: u64) {

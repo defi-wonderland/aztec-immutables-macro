@@ -69,6 +69,7 @@ pub contract SchnorrAccount {
 
         // Set sender for tags to this contract so user's PXE finds the note
         // without needing to register the account deployer as a sender
+        // Safety: The sender for tags is only used to compute unconstrained shared secrets for emitting logs.
         unsafe { set_sender_for_tags(self.address) };
 
         // Store and deliver the signing public key note
@@ -76,6 +77,7 @@ pub contract SchnorrAccount {
             MessageDelivery.CONSTRAINED_ONCHAIN,
         );
 
+        // Safety: The sender for tags is only used to compute unconstrained shared secrets for emitting logs.
         unsafe { set_sender_for_tags(original_sender) };
     }
 
