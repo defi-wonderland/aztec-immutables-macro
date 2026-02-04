@@ -1,31 +1,26 @@
 import { CounterContract } from "../artifacts/Counter.js";
-import { describe, it, expect, beforeAll, beforeEach } from "vitest";
-import {
-  registerInitialLocalNetworkAccountsInWallet,
-  TestWallet,
-} from "@aztec/test-wallet/server";
-import { createAztecNodeClient } from "@aztec/aztec.js/node";
-import { deployCounter } from "./utils.js";
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
+import { TestWallet } from "@aztec/test-wallet/server";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
+import { type AztecLMDBStoreV2 } from "@aztec/kv-store/lmdb-v2";
+import { deployCounter, setupTestSuite } from "./utils.js";
 
 describe("Counter Contract", () => {
+  let store: AztecLMDBStoreV2;
   let wallet: TestWallet;
   let alice: AztecAddress;
   let counter: CounterContract;
 
   beforeAll(async () => {
-    const aztecNode = await createAztecNodeClient("http://localhost:8080", {});
-    wallet = await TestWallet.create(
-      aztecNode,
-      {
-        dataDirectory: "pxe-test",
-        proverEnabled: false,
-      },
-      {},
-    );
+    ({
+      store,
+      wallet,
+      accounts: [alice],
+    } = await setupTestSuite());
+  });
 
-    // Local network starts with predeployed funded accounts; register them in PXE for private execution.
-    [alice] = await registerInitialLocalNetworkAccountsInWallet(wallet);
+  afterAll(async () => {
+    await store.delete();
   });
 
   beforeEach(async () => {

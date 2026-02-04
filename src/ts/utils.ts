@@ -5,6 +5,64 @@ import {
 } from "../artifacts/Counter.js";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { Contract } from "@aztec/aztec.js/contracts";
+import { createAztecNodeClient, waitForNode } from "@aztec/aztec.js/node";
+import {
+  registerInitialLocalNetworkAccountsInWallet,
+  TestWallet,
+} from "@aztec/test-wallet/server";
+import { createStore, type AztecLMDBStoreV2 } from "@aztec/kv-store/lmdb-v2";
+import { getPXEConfig } from "@aztec/pxe/server";
+
+const { NODE_URL = "http://localhost:8080" } = process.env;
+const { PXE_VERSION = "2" } = process.env;
+const pxeVersion = parseInt(PXE_VERSION);
+
+/**
+ * Setup the store, node, wallet and accounts for tests.
+ * @param suffix - optional - The suffix to use for the store directory.
+ * @param proverEnabled - optional - Whether to enable the prover.
+ * @returns The store, wallet and accounts. Call `store.delete()` in afterAll to cleanup.
+ */
+export async function setupTestSuite(
+  suffix?: string,
+  proverEnabled: boolean = false,
+) {
+  const node = createAztecNodeClient(NODE_URL);
+  await waitForNode(node);
+
+  const l1Contracts = await node.getL1ContractAddresses();
+  const config = getPXEConfig();
+  const storeDir = suffix ? `store-${suffix}` : "store";
+
+  const fullConfig = {
+    ...config,
+    l1Contracts,
+    dataDirectory: storeDir,
+    dataStoreMapSizeKb: 1e6,
+  };
+
+  // Create the store for manual cleanups
+  const store: AztecLMDBStoreV2 = await createStore("pxe_data", pxeVersion, {
+    dataDirectory: storeDir,
+    dataStoreMapSizeKb: 1e6,
+  });
+
+  const wallet: TestWallet = await TestWallet.create(
+    node,
+    { ...fullConfig, proverEnabled },
+    { store },
+  );
+
+  const accounts: AztecAddress[] =
+    await registerInitialLocalNetworkAccountsInWallet(wallet);
+
+  return {
+    store,
+    node,
+    wallet,
+    accounts,
+  };
+}
 
 /**
  * Deploys the Counter contract.
