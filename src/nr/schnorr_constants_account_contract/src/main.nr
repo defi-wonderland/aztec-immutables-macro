@@ -45,7 +45,7 @@ pub contract SchnorrConstantsAccount {
             get_nullifier_membership_witness::get_low_nullifier_membership_witness,
             notes::set_sender_for_tags,
         },
-        protocol::{address::AztecAddress, traits::Deserialize},
+        protocol::address::AztecAddress,
     };
 
     use crate::public_key::PublicKey;
@@ -53,7 +53,6 @@ pub contract SchnorrConstantsAccount {
     use initializerless::constants;
 
     /// Constants struct containing the signing public key.
-    #[derive(Deserialize)]
     #[constants]
     pub struct Constants {
         /// The signing public key (x, y coordinates on the Grumpkin curve)

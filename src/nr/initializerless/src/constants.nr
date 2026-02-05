@@ -6,7 +6,6 @@
 /// ## Usage
 ///
 /// ```noir
-/// #[derive(Deserialize)]
 /// #[constants]
 /// pub struct Constants {
 ///     pub signing_key_x: Field,
@@ -16,7 +15,7 @@
 ///
 /// ## What It Generates
 ///
-/// - `Serialize` implementation (if not already implemented)
+/// - `Serialize` and `Deserialize` implementations (if not already implemented)
 /// - `Constants::init(context: &mut PrivateContext)` - Loads and verifies constants against contract salt
 /// - `Constants::init_unconstrained(context: UtilityContext)` - Unconstrained load without verification
 ///
@@ -33,7 +32,6 @@
 /// ## Requirements
 ///
 /// - The struct MUST be named `Constants`
-/// - `#[derive(Deserialize)]` is required (for deserializing constants from capsule data)
 ///
 /// ## Future Improvements (for Aztec protocol)
 ///
@@ -61,7 +59,7 @@
 ///
 /// This macro:
 /// - Validates the struct is named `Constants`
-/// - Derives `Serialize` if not already implemented
+/// - Derives `Serialize` and `Deserialize` if not already implemented
 /// - Generates `init(context: &mut PrivateContext)` for private/contract_library_method functions
 /// - Generates `init_unconstrained(context: UtilityContext)` for utility functions
 ///
@@ -84,8 +82,9 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
         )
     }
 
-    // Derive Serialize if not already implemented
+    // Derive Serialize and Deserialize if not already implemented
     let serialize_impl = aztec::macros::utils::derive_serialize_if_not_implemented(s);
+    let deserialize_impl = derive_deserialize_if_not_implemented(s);
 
     // Poseidon2 hash of 'CONSTANTS_SLOT': poseidon2_hash_bytes("CONSTANTS_SLOT".as_bytes());
     let CONSTANTS_SLOT: Field = 0x257f7fa8d0b607b4f584f2aa6480ae86716203481e2802444cf05a289cc85b3a;
@@ -107,6 +106,7 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
 
     quote {
         $serialize_impl
+        $deserialize_impl
         impl Constants {
             /// Loads and verifies constants from capsule storage.
             ///
@@ -186,5 +186,17 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
                 aztec::protocol::traits::Deserialize::deserialize(serialized_constants)
             }
         }
+    }
+}
+
+/// Generates a quote that implements `Deserialize` for a given struct `s`. If the struct already implements
+/// `Deserialize`, we return an empty quote.
+///
+/// Mirrors `aztec::macros::utils::derive_serialize_if_not_implemented` but for `Deserialize`.
+comptime fn derive_deserialize_if_not_implemented(s: TypeDefinition) -> Quoted {
+    if s.as_type().implements(quote { aztec::protocol::traits::Deserialize }.as_trait_constraint()) {
+        quote {}
+    } else {
+        aztec::protocol::meta::derive_deserialize(s)
     }
 }
