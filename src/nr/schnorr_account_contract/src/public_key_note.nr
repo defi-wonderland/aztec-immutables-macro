@@ -1,4 +1,4 @@
-use aztec::{macros::notes::note, protocol_types::traits::Packable};
+use aztec::{macros::notes::note, protocol::traits::Packable};
 
 /// Stores a signing public key composed of two field elements (x, y coordinates).
 ///

@@ -72,7 +72,7 @@ use aztec::macros::aztec;
 pub contract ConstantsContract {
     use aztec::{
         macros::{functions::{external, initializer, noinitcheck, view}, storage::storage},
-        protocol_types::traits::Deserialize,
+        protocol::traits::Deserialize,
         state_vars::PublicMutable,
     };
     use initializerless::constants;

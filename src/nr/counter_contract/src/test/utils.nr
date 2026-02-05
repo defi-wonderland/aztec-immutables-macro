@@ -1,6 +1,6 @@
 use crate::Counter;
 use aztec::{
-    protocol_types::address::AztecAddress, test::helpers::test_environment::TestEnvironment,
+    protocol::address::AztecAddress, test::helpers::test_environment::TestEnvironment,
 };
 
 pub unconstrained fn setup_contract(

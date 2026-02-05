@@ -98,7 +98,7 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
     let serialized_len = if fields.len() > 0 {
         fields
             .map(|(_, field_type, _): (Quoted, Type, Quoted)| {
-                quote { <$field_type as aztec::protocol_types::traits::Serialize>::N }
+                quote { <$field_type as aztec::protocol::traits::Serialize>::N }
             })
             .join(quote { + })
     } else {
@@ -135,7 +135,7 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
                 };
 
                 // Compute salt from entire capsule data
-                let salt = aztec::protocol_types::hash::poseidon2_hash(capsule_data);
+                let salt = aztec::protocol::hash::poseidon2_hash(capsule_data);
 
                 // Get contract instance to access salt
                 let instance = aztec::oracle::get_contract_instance::get_contract_instance(address);
@@ -153,7 +153,7 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
                     serialized_constants[i] = capsule_data[i + 1];
                 }
 
-                aztec::protocol_types::traits::Deserialize::deserialize(serialized_constants)
+                aztec::protocol::traits::Deserialize::deserialize(serialized_constants)
             }
 
             /// Loads constants from capsule storage without verification.
@@ -183,7 +183,7 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
                     serialized_constants[i] = capsule_data[i + 1];
                 }
 
-                aztec::protocol_types::traits::Deserialize::deserialize(serialized_constants)
+                aztec::protocol::traits::Deserialize::deserialize(serialized_constants)
             }
         }
     }

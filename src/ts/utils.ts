@@ -23,9 +23,8 @@ export async function deployCounter(
     [owner],
     "constructor", // not actually needed since it's the default constructor
   );
-  const tx = await deployMethod.send({
+  const contract = await deployMethod.send({
     from: deployerAddress,
   });
-  const contract = await tx.deployed();
   return contract as CounterContract;
 }
