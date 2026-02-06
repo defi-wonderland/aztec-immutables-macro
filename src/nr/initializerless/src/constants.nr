@@ -82,27 +82,14 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
         )
     }
 
-    // Derive Serialize and Deserialize if not already implemented
+    // Derive Serialize and Deserialize if not already implemented.
+    // derive_deserialize_if_not_implemented also returns the serialized length expression,
+    // which we reuse for capsule array sizing (Serialize::N == Deserialize::N for the same struct).
     let serialize_impl = aztec::macros::utils::derive_serialize_if_not_implemented(s);
-    let deserialize_impl = derive_deserialize_if_not_implemented(s);
+    let (deserialize_impl, serialized_len) = derive_deserialize_if_not_implemented(s);
 
-    // Poseidon2 hash of 'CONSTANTS_SLOT': poseidon2_hash_bytes("CONSTANTS_SLOT".as_bytes());
-    let CONSTANTS_SLOT: Field = 0x257f7fa8d0b607b4f584f2aa6480ae86716203481e2802444cf05a289cc85b3a;
-
-    // Compute serialized length from field types (handles nested structs, arrays, etc.)
-    // Pattern from Aztec's derive macros: noir-protocol-circuits/crates/types/src/meta/mod.nr
-    let constants_type = s.as_type();
-    let (struct_def, generics) = constants_type.as_data_type().unwrap();
-    let fields = struct_def.fields(generics);
-    let serialized_len = if fields.len() > 0 {
-        fields
-            .map(|(_, field_type, _): (Quoted, Type, Quoted)| {
-                quote { <$field_type as aztec::protocol::traits::Serialize>::N }
-            })
-            .join(quote { + })
-    } else {
-        quote { 0 }
-    };
+    // CONSTANTS_SLOT: 0x257f7fa8d0b607b4f584f2aa6480ae86716203481e2802444cf05a289cc85b3a
+    let CONSTANTS_SLOT: Field = aztec::protocol::hash::poseidon2_hash_bytes("CONSTANTS_SLOT".as_bytes());
 
     quote {
         $serialize_impl
@@ -189,14 +176,92 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
     }
 }
 
-/// Generates a quote that implements `Deserialize` for a given struct `s`. If the struct already implements
-/// `Deserialize`, we return an empty quote.
+/// Generates a `Deserialize` impl for a given struct if not already implemented.
 ///
-/// Mirrors `aztec::macros::utils::derive_serialize_if_not_implemented` but for `Deserialize`.
-comptime fn derive_deserialize_if_not_implemented(s: TypeDefinition) -> Quoted {
-    if s.as_type().implements(quote { aztec::protocol::traits::Deserialize }.as_trait_constraint()) {
-        quote {}
+/// Returns `(impl_code, serialized_len)` where `serialized_len` is the total field count
+/// expression (sum of each field's `Deserialize::N`). This is reused by the `constants` macro
+/// for capsule array sizing, since `Serialize::N == Deserialize::N` for the same struct.
+///
+/// Based on `derive_deserialize` from aztec-packages:
+/// `noir-protocol-circuits/crates/serde/src/serialization.nr`
+///
+/// We use a custom implementation instead of `aztec::protocol::meta::derive_deserialize` because
+/// that function uses an unqualified `Deserialize` reference in `stream_deserialize` for
+/// multi-field structs, which requires the trait to be imported at the call site. Since macros
+/// cannot emit `use` statements (only functions, structs, globals, and impls), we generate
+/// fully-qualified `aztec::protocol::traits::Deserialize` references that work without imports.
+comptime fn derive_deserialize_if_not_implemented(s: TypeDefinition) -> (Quoted, Quoted) {
+    let typ = s.as_type();
+    let (struct_def, generics) = typ.as_data_type().unwrap();
+    let params = struct_def.fields(generics);
+
+    let n_expr = if params.len() > 0 {
+        params
+            .map(|(_, param_type, _): (Quoted, Type, Quoted)| {
+                quote { <$param_type as aztec::protocol::traits::Deserialize>::N }
+            })
+            .join(quote { + })
     } else {
-        aztec::protocol::meta::derive_deserialize(s)
+        quote { 0 }
+    };
+
+    if s.as_type().implements(quote { aztec::protocol::traits::Deserialize }.as_trait_constraint()) {
+        (quote {}, n_expr)
+    } else {
+        // Build per-field deserialization using index-based array slicing.
+        // Each field is deserialized by extracting its range from the input array
+        // and calling the fully-qualified Deserialize::deserialize on that slice.
+        // We use a for loop instead of .map() because mutable variables cannot be
+        // captured in lambdas in Noir comptime.
+        let mut offset_components: [Quoted] = &[];
+        let mut field_deserialization = quote {};
+        for i in 0..params.len() {
+            let (name, param_type, _) = params[i];
+            let field_n = quote { <$param_type as aztec::protocol::traits::Deserialize>::N };
+            let offset_expr = if offset_components.len() == 0 {
+                quote { 0 }
+            } else {
+                offset_components.map(|q: Quoted| q).join(quote { + })
+            };
+            offset_components = offset_components.push_back(field_n);
+            let new_field = quote {
+                let $name: $param_type = {
+                    let mut field_arr: [Field; $field_n] = [0; $field_n];
+                    for i in 0..$field_n {
+                        field_arr[i] = fields[$offset_expr + i];
+                    }
+                    aztec::protocol::traits::Deserialize::deserialize(field_arr)
+                };
+            };
+            field_deserialization = quote { $field_deserialization $new_field };
+        }
+
+        let member_names = params
+            .map(|(name, _, _): (Quoted, Type, Quoted)| quote { $name })
+            .join(quote { , });
+
+        let stream_body = params
+            .map(|(name, param_type, _): (Quoted, Type, Quoted)| {
+                quote {
+                    let $name = <$param_type as aztec::protocol::traits::Deserialize>::stream_deserialize(reader);
+                }
+            })
+            .join(quote {});
+
+        (quote {
+            impl aztec::protocol::traits::Deserialize for $typ {
+                let N: u32 = $n_expr;
+
+                fn deserialize(fields: [Field; Self::N]) -> Self {
+                    $field_deserialization
+                    Self { $member_names }
+                }
+
+                fn stream_deserialize<let K: u32>(reader: &mut aztec::protocol::utils::reader::Reader<K>) -> Self {
+                    $stream_body
+                    Self { $member_names }
+                }
+            }
+        }, n_expr)
     }
 }
