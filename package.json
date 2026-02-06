@@ -13,7 +13,8 @@
     "test:js": "vitest run",
     "test:nr": "aztec test",
     "lint:prettier": "prettier '**/*.{js,ts}' --write",
-    "ccc": "yarn clean && yarn compile && yarn codegen",
+    "ccc": "yarn clean && yarn compile && yarn codegen && yarn build-aztec-standards",
+    "build-aztec-standards": "npx tsx scripts/build-aztec-standards.ts chore/v4",
     "benchmark": "aztec-benchmark --suffix _base",
     "prepare": "husky"
   },
@@ -28,7 +29,7 @@
     "@aztec/pxe": "4.0.0-nightly.20260204",
     "@aztec/stdlib": "4.0.0-nightly.20260204",
     "@aztec/test-wallet": "4.0.0-nightly.20260204",
-    "@defi-wonderland/aztec-benchmark": "3.0.0-devnet.2",
+    "@defi-wonderland/aztec-benchmark": "github:defi-wonderland/aztec-benchmark#chore/v4",
     "@types/node": "25.0.2"
   },
   "devDependencies": {

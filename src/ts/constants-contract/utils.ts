@@ -195,7 +195,7 @@ export async function deployConstantsContract(
         wallet,
         ConstantsContractContractArtifact,
       );
-      await publishClassInteraction.send({ from: deployerAddress }).wait();
+      await publishClassInteraction.send({ from: deployerAddress });
     }
   }
 
@@ -203,8 +203,7 @@ export async function deployConstantsContract(
   const publishInstanceInteraction = await publishInstance(wallet, instance);
   await publishInstanceInteraction
     .with({ capsules: [capsule] })
-    .send({ from: deployerAddress })
-    .wait();
+    .send({ from: deployerAddress });
 
   const contract = ConstantsContractContract.at(instance.address, wallet);
   return { contract, actualSalt };
@@ -248,11 +247,9 @@ export async function deployMixedUsageContract(
   );
 
   // Deploy with capsule attached
-  const tx = deployMethod.send({
-    capsules: [capsule],
-    from: deployerAddress,
-  });
-  const contract = await tx.deployed();
+  const contract = (await deployMethod
+    .with({ capsules: [capsule] })
+    .send({ from: deployerAddress })) as ConstantsContractContract;
 
   return { contract, actualSalt };
 }

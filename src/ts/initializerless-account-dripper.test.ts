@@ -67,8 +67,8 @@ import { deploySchnorrAccount } from "./schnorr-account/utils.js";
 
 // Import Token and Dripper from aztec-standards
 // Note: Path goes up from src/ts/ to workspace root, then to aztec-standards
-import { TokenContract } from "../../../aztec-standards/artifacts/Token.js";
-import { DripperContract } from "../../../aztec-standards/artifacts/Dripper.js";
+import { TokenContract } from "../../src/artifacts/Token.js";
+import { DripperContract } from "../../src/artifacts/Dripper.js";
 
 describe("Initializerless Account with Dripper FPC", () => {
   let store: AztecLMDBStoreV2;
@@ -105,9 +105,9 @@ describe("Initializerless Account with Dripper FPC", () => {
 
     // Deploy Dripper contract (faucet)
     console.log("Deploying Dripper contract...");
-    dripper = await DripperContract.deploy(wallet)
-      .send({ from: deployerAddress })
-      .deployed();
+    dripper = await DripperContract.deploy(wallet).send({
+      from: deployerAddress,
+    });
     console.log(`Dripper deployed at: ${dripper.address}`);
 
     // Deploy Token contract with Dripper as minter
@@ -119,9 +119,7 @@ describe("Initializerless Account with Dripper FPC", () => {
       18n, // decimals
       dripper.address, // minter = Dripper contract
       AztecAddress.ZERO, // upgrade_authority (not upgradeable)
-    )
-      .send({ from: deployerAddress })
-      .deployed();
+    ).send({ from: deployerAddress });
     console.log(`Token deployed at: ${token.address}`);
   });
 
@@ -160,10 +158,8 @@ describe("Initializerless Account with Dripper FPC", () => {
       .send({
         from: constantsAccount.address,
         fee: { paymentMethod: sponsoredPaymentMethod },
-      })
-      .wait();
-
-    expect(tx.status).toBe("success");
+      });
+    expect(tx.isMined()).toBe(true);
     console.log(
       `drip_to_private succeeded for constants account, tx: ${tx.txHash}`,
     );
@@ -195,10 +191,9 @@ describe("Initializerless Account with Dripper FPC", () => {
       .send({
         from: standardAccount.contract.address,
         fee: { paymentMethod: sponsoredPaymentMethod },
-      })
-      .wait();
+      });
 
-    expect(tx.status).toBe("success");
+    expect(tx.isMined()).toBe(true);
     console.log(
       `drip_to_private succeeded for standard account, tx: ${tx.txHash}`,
     );
@@ -239,20 +234,17 @@ describe("Initializerless Account with Dripper FPC", () => {
       .send({
         from: constantsAccount.address,
         fee: { paymentMethod: sponsoredPaymentMethod },
-      })
-      .wait();
+      });
 
     const standardDripTx = await dripper.methods
       .drip_to_private(token.address, DRIP_AMOUNT)
       .send({
         from: standardAccount.contract.address,
         fee: { paymentMethod: sponsoredPaymentMethod },
-      })
-      .wait();
+      });
 
-    // todo: horrid, change it
-    expect(constantsDripTx.status).toBe("success");
-    expect(standardDripTx.status).toBe("success");
+    expect(constantsDripTx.isMined()).toBe(true);
+    expect(standardDripTx.isMined()).toBe(true);
     console.log("Both accounts received initial tokens");
 
     // Transfer amounts
@@ -273,9 +265,8 @@ describe("Initializerless Account with Dripper FPC", () => {
       .send({
         from: constantsAccount.address,
         fee: { paymentMethod: sponsoredPaymentMethod },
-      })
-      .wait();
-    expect(tx1.status).toBe("success");
+      });
+    expect(tx1.isMined()).toBe(true);
 
     // 2. ConstantsAccount transfers 100 private tokens to self as public
     console.log("ConstantsAccount: 100 private -> public...");
@@ -290,9 +281,8 @@ describe("Initializerless Account with Dripper FPC", () => {
       .send({
         from: constantsAccount.address,
         fee: { paymentMethod: sponsoredPaymentMethod },
-      })
-      .wait();
-    expect(tx2.status).toBe("success");
+      });
+    expect(tx2.isMined()).toBe(true);
 
     // 3. StandardAccount transfers 50 private tokens to ConstantsAccount
     console.log("StandardAccount -> ConstantsAccount: 50 private...");
@@ -306,9 +296,8 @@ describe("Initializerless Account with Dripper FPC", () => {
       .send({
         from: standardAccount.contract.address,
         fee: { paymentMethod: sponsoredPaymentMethod },
-      })
-      .wait();
-    expect(tx3.status).toBe("success");
+      });
+    expect(tx3.isMined()).toBe(true);
 
     // Verify final balances
     // ConstantsAccount: 1000 - 100 (to standard) - 100 (to public) + 50 (from standard) = 850 private, 100 public
@@ -455,10 +444,9 @@ describe("Initializerless Account with Dripper FPC", () => {
       .send({
         from: unpublishedAccount.address,
         fee: { paymentMethod: sponsoredPaymentMethod },
-      })
-      .wait();
+      });
 
-    expect(tx.status).toBe("success");
+    expect(tx.isMined()).toBe(true);
     console.log(`Transaction succeeded! tx: ${tx.txHash}`);
 
     // Verify tokens were received

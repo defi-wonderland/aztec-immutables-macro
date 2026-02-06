@@ -22,15 +22,15 @@
  * ```
  */
 
-import type {
-  AccountContract,
-  AccountInterface,
-  AuthWitnessProvider,
-  ChainInfo,
+import {
+  type Account,
+  type AccountContract,
+  type AuthWitnessProvider,
+  BaseAccount,
 } from "@aztec/aztec.js/account";
 import type { ContractArtifact } from "@aztec/stdlib/abi";
 import type { CompleteAddress } from "@aztec/stdlib/contract";
-import { DefaultAccountInterface } from "@aztec/accounts/defaults";
+import { DefaultAccountEntrypoint } from "@aztec/entrypoints/account";
 import { Schnorr } from "@aztec/foundation/crypto/schnorr";
 import { Fr, GrumpkinScalar } from "@aztec/aztec.js/fields";
 import { AuthWitness } from "@aztec/stdlib/auth-witness";
@@ -86,16 +86,17 @@ export class SchnorrConstantsAccountContract implements AccountContract {
   }
 
   /**
-   * Returns the AccountInterface for this account.
+   * Returns the Account for this account contract.
    */
-  getInterface(
-    address: CompleteAddress,
-    chainInfo: ChainInfo,
-  ): AccountInterface {
-    return new DefaultAccountInterface(
-      this.getAuthWitnessProvider(address),
-      address,
-      chainInfo,
+  getAccount(completeAddress: CompleteAddress): Account {
+    const authWitnessProvider = this.getAuthWitnessProvider(completeAddress);
+    return new BaseAccount(
+      new DefaultAccountEntrypoint(
+        completeAddress.address,
+        authWitnessProvider,
+      ),
+      authWitnessProvider,
+      completeAddress,
     );
   }
 

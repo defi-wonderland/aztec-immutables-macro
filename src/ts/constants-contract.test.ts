@@ -215,7 +215,7 @@ describe("Constants Contract - Mixed Usage (Constants + Storage)", () => {
     );
 
     // Increment counter via public function
-    await contract.methods.increment_counter().send({ from: alice }).wait();
+    await contract.methods.increment_counter().send({ from: alice });
 
     // Read counter - should be incremented
     const counter = await contract.methods.get_counter().simulate({

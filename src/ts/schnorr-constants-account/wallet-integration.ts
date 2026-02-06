@@ -174,7 +174,7 @@ export async function registerConstantsAccount(
           wallet,
           SchnorrConstantsAccountContractArtifact,
         );
-        await publishClassInteraction.send({ from: deployerAddress }).wait();
+        await publishClassInteraction.send({ from: deployerAddress });
       }
     }
 
@@ -185,8 +185,7 @@ export async function registerConstantsAccount(
     );
     await publishInstanceInteraction
       .with({ capsules: [capsule] })
-      .send({ from: deployerAddress })
-      .wait();
+      .send({ from: deployerAddress });
 
     isPublished = true;
   }
@@ -203,13 +202,9 @@ export async function registerConstantsAccount(
     instanceWithAddress,
   );
 
-  // Get chain info and create account interface
-  const chainInfo = await wallet.getChainInfo();
-  const accountInterface = accountContract.getInterface(
-    completeAddress,
-    chainInfo,
-  );
-  const account = new AccountWithSecretKey(accountInterface, secretKey, salt);
+  // Create account and wrap with secret key
+  const baseAccount = accountContract.getAccount(completeAddress);
+  const account = new AccountWithSecretKey(baseAccount, secretKey, salt);
 
   // Register the account with the wallet for signing
   // Access the internal accounts map through a workaround

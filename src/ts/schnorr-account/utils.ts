@@ -100,8 +100,7 @@ export async function deploySchnorrAccount(
 
     // Deploy the account contract
     const deployMethod = await accountManager.getDeployMethod();
-    const sentTx = deployMethod.send({ from: deployerAddress });
-    await sentTx.wait();
+    await deployMethod.send({ from: deployerAddress });
 
     // Get the deployed contract instance using our local artifact
     // Note: This will have the same address but uses our local artifact
@@ -165,9 +164,7 @@ export async function deployLocalSchnorrAccount(
     wallet,
     signingPublicKey.x,
     signingPublicKey.y,
-  )
-    .send({ from: deployerAddress })
-    .deployed();
+  ).send({ from: deployerAddress });
 
   return {
     contract,
