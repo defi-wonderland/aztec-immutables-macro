@@ -45,7 +45,7 @@ pub contract SchnorrConstantsAccount {
             get_nullifier_membership_witness::get_low_nullifier_membership_witness,
             notes::set_sender_for_tags,
         },
-        protocol_types::{address::AztecAddress, traits::Deserialize},
+        protocol::address::AztecAddress,
     };
 
     use crate::public_key::PublicKey;
@@ -53,7 +53,6 @@ pub contract SchnorrConstantsAccount {
     use initializerless::constants;
 
     /// Constants struct containing the signing public key.
-    #[derive(Deserialize)]
     #[constants]
     pub struct Constants {
         /// The signing public key (x, y coordinates on the Grumpkin curve)
@@ -164,7 +163,7 @@ pub contract SchnorrConstantsAccount {
         let nullifier = compute_authwit_nullifier(self.address, inner_hash);
         let siloed_nullifier = compute_siloed_nullifier(consumer, nullifier);
         let lower_wit =
-            get_low_nullifier_membership_witness(self.context.block_number(), siloed_nullifier);
+            get_low_nullifier_membership_witness(self.context.block_header(), siloed_nullifier);
         let is_spent = lower_wit.leaf_preimage.nullifier == siloed_nullifier;
 
         !is_spent & valid_in_private
