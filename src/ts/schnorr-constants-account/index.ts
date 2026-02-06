@@ -1,8 +1,10 @@
 /**
- * SchnorrConstantsAccountContract - AccountContract implementation for initializerless pattern
+ * SchnorrConstantsAccount - Library module
  *
- * This provides the AccountContract interface needed to integrate SchnorrConstantsAccount
- * with the Aztec wallet system, enabling it to sign transactions and interact with other contracts.
+ * Provides everything needed to work with SchnorrConstantsAccount contracts:
+ * - AccountContract implementation for wallet integration
+ * - AuthWitnessProvider for transaction signing
+ * - Typed wrappers over generic initializerless constants utilities
  *
  * ## Key Differences from Standard SchnorrAccountContract:
  *
@@ -13,13 +15,13 @@
  * | Salt | Random | hash([actual_salt, public_key.x, public_key.y]) |
  * | Deployment | AccountManager.getDeployMethod() | Custom publishInstance() |
  *
- * ## Usage:
+ * ## How Salt Verification Works
  *
- * ```typescript
- * const signingKey = deriveSigningKey(secretKey);
- * const contract = new SchnorrConstantsAccountContract(signingPrivateKey, signingPublicKey);
- * const accountManager = await AccountManager.create(wallet, secretKey, contract, salt);
- * ```
+ * 1. TypeScript generates a random `actual_salt`
+ * 2. Computes `salt = poseidon2_hash([actual_salt, public_key.x, public_key.y])`
+ * 3. Creates contract instance with this `salt`
+ * 4. Capsule stores `[actual_salt, public_key.x, public_key.y]`
+ * 5. At runtime, Noir hashes capsule data and verifies against `instance.salt`
  */
 
 import {
@@ -34,8 +36,19 @@ import { DefaultAccountEntrypoint } from "@aztec/entrypoints/account";
 import { Schnorr } from "@aztec/foundation/crypto/schnorr";
 import { Fr, GrumpkinScalar } from "@aztec/aztec.js/fields";
 import { AuthWitness } from "@aztec/stdlib/auth-witness";
+import { AztecAddress } from "@aztec/stdlib/aztec-address";
+import { Capsule } from "@aztec/stdlib/tx";
 
 import { SchnorrConstantsAccountContractArtifact } from "../../artifacts/SchnorrConstantsAccount.js";
+import * as generic from "../initializerless/utils.js";
+import type { ConstantsInstanceOptions } from "../initializerless/utils.js";
+
+// Re-export CONSTANTS_SLOT from generic
+export { CONSTANTS_SLOT } from "../initializerless/utils.js";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 /**
  * Signing public key type (Grumpkin curve point coordinates)
@@ -44,6 +57,88 @@ export interface SigningPublicKey {
   x: Fr;
   y: Fr;
 }
+
+/**
+ * Result of computing a contract address
+ */
+export interface ComputeSchnorrAccountAddressResult {
+  address: AztecAddress;
+  /** The random salt stored in capsule, needed for creating capsules later */
+  actualSalt: Fr;
+}
+
+// ---------------------------------------------------------------------------
+// Serialization
+// ---------------------------------------------------------------------------
+
+/**
+ * Serializes the signing public key to Fr array (matches Noir serialization)
+ */
+export function serializeSigningKey(key: SigningPublicKey): Fr[] {
+  return [key.x, key.y];
+}
+
+// ---------------------------------------------------------------------------
+// Typed wrappers over generic initializerless utilities
+// ---------------------------------------------------------------------------
+
+/**
+ * Computes the contract salt from actual_salt and signing public key.
+ * This must match the Noir: poseidon2_hash([actual_salt, public_key.x, public_key.y])
+ *
+ * @param actualSalt - The random salt value stored in the capsule
+ * @param key - The signing public key
+ * @returns The derived salt to use in the contract instance
+ */
+export function computeContractSalt(actualSalt: Fr, key: SigningPublicKey): Fr {
+  return generic.computeContractSalt(actualSalt, serializeSigningKey(key));
+}
+
+/**
+ * Creates a Capsule containing the actual_salt and signing key for a given contract address.
+ * This capsule must be passed with any call that reads the signing key.
+ *
+ * Capsule format: [actual_salt, public_key.x, public_key.y]
+ *
+ * @param contractAddress - The contract address to create the capsule for
+ * @param actualSalt - The random salt value used during deployment
+ * @param key - The signing public key
+ */
+export function createSigningKeyCapsule(
+  contractAddress: AztecAddress,
+  actualSalt: Fr,
+  key: SigningPublicKey,
+): Capsule {
+  return generic.createConstantsCapsule(
+    contractAddress,
+    actualSalt,
+    serializeSigningKey(key),
+  );
+}
+
+/**
+ * Computes the contract address for a given signing key without deploying.
+ *
+ * Useful for pre-computing addresses before deployment.
+ *
+ * @param signingKey - The signing public key
+ * @param options - Optional address computation options
+ * @returns The contract address and actual_salt for capsule creation
+ */
+export async function computeSchnorrAccountAddress(
+  signingKey: SigningPublicKey,
+  options?: ConstantsInstanceOptions,
+): Promise<ComputeSchnorrAccountAddressResult> {
+  return generic.computeConstantsAddress(
+    SchnorrConstantsAccountContractArtifact,
+    serializeSigningKey(signingKey),
+    options,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AccountContract implementation
+// ---------------------------------------------------------------------------
 
 /**
  * AccountContract implementation for SchnorrConstantsAccount.
@@ -108,6 +203,10 @@ export class SchnorrConstantsAccountContract implements AccountContract {
   }
 }
 
+// ---------------------------------------------------------------------------
+// AuthWitnessProvider
+// ---------------------------------------------------------------------------
+
 /**
  * AuthWitnessProvider for SchnorrConstantsAccount.
  *
@@ -126,6 +225,10 @@ export class SchnorrConstantsAuthWitnessProvider implements AuthWitnessProvider 
     return new AuthWitness(messageHash, [...signature.toBuffer()]);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Factory
+// ---------------------------------------------------------------------------
 
 /**
  * Creates a SchnorrConstantsAccountContract from a secret key.

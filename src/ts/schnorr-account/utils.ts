@@ -104,10 +104,7 @@ export async function deploySchnorrAccount(
 
     // Get the deployed contract instance using our local artifact
     // Note: This will have the same address but uses our local artifact
-    const contract = await SchnorrAccountContract.at(
-      accountManager.address,
-      wallet,
-    );
+    const contract = SchnorrAccountContract.at(accountManager.address, wallet);
 
     return {
       contract,

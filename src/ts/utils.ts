@@ -75,7 +75,7 @@ export async function deployCounter(
   owner: AztecAddress,
 ): Promise<CounterContract> {
   const deployerAddress = (await deployer.getAccounts())[0]!.item;
-  const deployMethod = await Contract.deploy(
+  const deployMethod = Contract.deploy(
     deployer,
     CounterContractArtifact,
     [owner],

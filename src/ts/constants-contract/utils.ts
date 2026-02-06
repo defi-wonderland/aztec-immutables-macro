@@ -1,33 +1,18 @@
 import { Fr } from "@aztec/aztec.js/fields";
-import { poseidon2Hash } from "@aztec/foundation/crypto/sync";
-import { Capsule } from "@aztec/stdlib/tx";
-import { AztecAddress } from "@aztec/stdlib/aztec-address";
-import { PublicKeys } from "@aztec/stdlib/keys";
-import {
-  computeContractAddressFromInstance,
-  getContractClassFromArtifact,
-} from "@aztec/stdlib/contract";
-import type {
-  ContractInstance,
-  ContractInstanceWithAddress,
-} from "@aztec/stdlib/contract";
 import type { Wallet } from "@aztec/aztec.js/wallet";
 import {
   ConstantsContractContract,
   ConstantsContractContractArtifact,
 } from "../../artifacts/ConstantsContract.js";
-import {
-  publishContractClass,
-  publishInstance,
-} from "@aztec/aztec.js/deployment";
+import * as generic from "../initializerless/utils.js";
+import type { DeployWithConstantsOptions } from "../initializerless/utils.js";
 
-/**
- * Constants slot - must match CONSTANTS_SLOT in the #[constants] macro
- * Computed as: poseidon2_hash_bytes("CONSTANTS_SLOT".as_bytes())
- */
-export const CONSTANTS_SLOT = new Fr(
-  0x257f7fa8d0b607b4f584f2aa6480ae86716203481e2802444cf05a289cc85b3an,
-);
+// Re-export from generic
+export {
+  CONSTANTS_SLOT,
+  createConstantsCapsule,
+  computeContractSalt,
+} from "../initializerless/utils.js";
 
 /**
  * Constants type matching the Noir struct
@@ -45,99 +30,14 @@ export function serializeConstants(constants: Constants): Fr[] {
 }
 
 /**
- * Computes the contract salt from actual_salt and constants.
- * This must match the Noir: poseidon2_hash([actual_salt, ...serialized_constants])
- *
- * @param actualSalt - The random salt value stored in the capsule
- * @param constants - The constants to commit
- * @returns The derived salt to use in the contract instance
- */
-export async function computeContractSalt(
-  actualSalt: Fr,
-  constants: Constants,
-): Promise<Fr> {
-  const capsuleData = [actualSalt, ...serializeConstants(constants)];
-  const result = await poseidon2Hash(capsuleData as any);
-  return new Fr(result.toBigInt());
-}
-
-/**
- * Computes the initialization hash from constants (for compatibility/testing)
- * @deprecated Use computeContractSalt instead for salt-based verification
- */
-export async function computeConstantsHash(constants: Constants): Promise<Fr> {
-  const serialized = serializeConstants(constants);
-  return poseidon2Hash(serialized);
-}
-
-/**
- * Creates a Capsule containing the actual_salt and constants for a given contract address.
- * Capsule format: [actual_salt, ...serialized_constants]
- *
- * @param contractAddress - The contract address to create the capsule for
- * @param actualSalt - The random salt value used during deployment
- * @param constants - The constants values
- */
-export function createConstantsCapsule(
-  contractAddress: AztecAddress,
-  actualSalt: Fr,
-  constants: Constants,
-): Capsule {
-  const data = [actualSalt, ...serializeConstants(constants)];
-  return new Capsule(contractAddress, CONSTANTS_SLOT, data);
-}
-
-/**
  * Result of deploying the constants contract
  */
 export interface DeployConstantsContractResult {
   contract: ConstantsContractContract;
   /** The random salt stored in capsule, needed for creating capsules later */
   actualSalt: Fr;
-}
-
-/**
- * Creates a contract instance with salt derived from actual_salt and constants.
- *
- * The contract's salt field = poseidon2_hash([actual_salt, ...serialized_constants])
- * This allows verification at runtime by hashing the capsule data.
- *
- * @param constants - The constants to commit
- * @param options - Optional deployment options (actualSalt, publicKeys, deployer)
- * @returns The contract instance with address and the actual_salt for capsule creation
- */
-export async function createConstantsInstance(
-  constants: Constants,
-  options?: {
-    /** Random salt stored in capsule (generated if not provided) */
-    actualSalt?: Fr;
-    publicKeys?: PublicKeys;
-    deployer?: AztecAddress;
-  },
-): Promise<{ instance: ContractInstanceWithAddress; actualSalt: Fr }> {
-  const actualSalt = options?.actualSalt ?? Fr.random();
-  const publicKeys = options?.publicKeys ?? PublicKeys.default();
-  const deployer = options?.deployer ?? AztecAddress.ZERO;
-
-  const contractClass = await getContractClassFromArtifact(
-    ConstantsContractContractArtifact,
-  );
-
-  // Compute salt = poseidon2Hash([actual_salt, ...serialized_constants])
-  const salt = await computeContractSalt(actualSalt, constants);
-
-  const instance: ContractInstance = {
-    version: 1,
-    salt,
-    deployer,
-    currentContractClassId: contractClass.id,
-    originalContractClassId: contractClass.id,
-    initializationHash: Fr.ZERO, // No initializer
-    publicKeys,
-  };
-
-  const address = await computeContractAddressFromInstance(instance);
-  return { instance: { ...instance, address }, actualSalt };
+  /** Whether the contract instance was published on-chain */
+  isPublished: boolean;
 }
 
 /**
@@ -152,61 +52,31 @@ export async function createConstantsInstance(
  *
  * @param wallet - The wallet to deploy with
  * @param constants - The constants to commit to the contract address
- * @param options - Optional deployment options (actualSalt, deployer)
+ * @param options - Optional deployment options
  * @returns The deployed contract and actual_salt for capsule creation
  */
 export async function deployConstantsContract(
   wallet: Wallet,
   constants: Constants,
-  options?: {
-    actualSalt?: Fr;
-    deployer?: AztecAddress;
-    skipClassPublication?: boolean;
-  },
+  options?: DeployWithConstantsOptions,
 ): Promise<DeployConstantsContractResult> {
-  const deployerAddress = (await wallet.getAccounts())[0]!.item;
-  const deployer = options?.deployer ?? AztecAddress.ZERO;
-
-  // Create contract instance with constants committed via salt
-  const { instance, actualSalt } = await createConstantsInstance(constants, {
-    actualSalt: options?.actualSalt,
-    deployer,
-  });
-
-  // Create capsule with [actual_salt, ...serialized_constants]
-  const capsule = createConstantsCapsule(
-    instance.address,
-    actualSalt,
-    constants,
+  const result = await generic.deployWithConstants(
+    wallet,
+    ConstantsContractContractArtifact,
+    serializeConstants(constants),
+    options,
   );
 
-  // Register the contract with the wallet
-  await wallet.registerContract(instance, ConstantsContractContractArtifact);
+  const contract = ConstantsContractContract.at(
+    result.instance.address,
+    wallet,
+  );
 
-  // Publish the contract class if not skipped
-  if (!options?.skipClassPublication) {
-    const contractClass = await getContractClassFromArtifact(
-      ConstantsContractContractArtifact,
-    );
-    const metadata = await wallet.getContractClassMetadata(contractClass.id);
-
-    if (!metadata.isContractClassPubliclyRegistered) {
-      const publishClassInteraction = await publishContractClass(
-        wallet,
-        ConstantsContractContractArtifact,
-      );
-      await publishClassInteraction.send({ from: deployerAddress });
-    }
-  }
-
-  // Publish the contract instance with capsule
-  const publishInstanceInteraction = await publishInstance(wallet, instance);
-  await publishInstanceInteraction
-    .with({ capsules: [capsule] })
-    .send({ from: deployerAddress });
-
-  const contract = ConstantsContractContract.at(instance.address, wallet);
-  return { contract, actualSalt };
+  return {
+    contract,
+    actualSalt: result.actualSalt,
+    isPublished: result.isPublished,
+  };
 }
 
 /**
@@ -240,10 +110,10 @@ export async function deployMixedUsageContract(
 
   // Get the deployment address before sending to create capsule
   const instance = await deployMethod.getInstance();
-  const capsule = createConstantsCapsule(
+  const capsule = generic.createConstantsCapsule(
     instance.address,
     actualSalt,
-    constants,
+    serializeConstants(constants),
   );
 
   // Deploy with capsule attached
@@ -251,5 +121,5 @@ export async function deployMixedUsageContract(
     .with({ capsules: [capsule] })
     .send({ from: deployerAddress })) as ConstantsContractContract;
 
-  return { contract, actualSalt };
+  return { contract, actualSalt, isPublished: true };
 }

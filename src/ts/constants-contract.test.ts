@@ -7,10 +7,23 @@ import {
   deployConstantsContract,
   deployMixedUsageContract,
   createConstantsCapsule,
+  serializeConstants,
   type Constants,
   computeContractSalt,
 } from "./constants-contract/utils.js";
 import { setupTestSuite } from "./utils.js";
+
+const CONSTANTS_1: Constants = {
+  signingKeyX: new Fr(111n),
+  signingKeyY: new Fr(222n),
+};
+const CONSTANTS_2: Constants = {
+  signingKeyX: new Fr(333n),
+  signingKeyY: new Fr(444n),
+};
+const ACTUAL_SALT_1 = new Fr(12345n);
+const ACTUAL_SALT_2 = new Fr(54321n);
+const INITIAL_COUNTER = 42n;
 
 describe("Constants Contract - Initializerless Pattern", () => {
   let store: AztecLMDBStoreV2;
@@ -29,93 +42,18 @@ describe("Constants Contract - Initializerless Pattern", () => {
     await store.delete();
   });
 
-  // These tests demonstrate the full initializerless pattern for pure constant contracts.
-  // The pattern works via publishInstance (no initializer tx needed) combined with:
-  // - #[noinitcheck] attribute on functions that read constants
-  // - Constants verification against salt provides equivalent security
-  it("should deploy contract with constants and read them back", async () => {
-    // Define test constants
-    const constants: Constants = {
-      signingKeyX: new Fr(0x1234567890abcdefn),
-      signingKeyY: new Fr(0xfedcba0987654321n),
-    };
-
-    // Deploy the contract with constants
-    const { contract, actualSalt } = await deployConstantsContract(
-      wallet,
-      constants,
-    );
-
-    // Verify contract was deployed
-    expect(contract.address).toBeDefined();
-    expect(contract.address.toString()).not.toBe(AztecAddress.ZERO.toString());
-
-    // Create capsule for the call (capsules must be passed with each call that reads them)
-    const capsule = createConstantsCapsule(
-      contract.address,
-      actualSalt,
-      constants,
-    );
-
-    // Call the private function that reads constants
-    const result = await contract.methods
-      .get_signing_key()
-      .with({ capsules: [capsule] })
-      .simulate({
-        from: alice,
-      });
-
-    // Verify the returned values match what we deployed with
-    expect(result[0]).toEqual(constants.signingKeyX.toBigInt());
-    expect(result[1]).toEqual(constants.signingKeyY.toBigInt());
-  });
-
-  it("should deploy with different constants values", async () => {
-    // Use different values to ensure it's not cached/static
-    const constants: Constants = {
-      signingKeyX: new Fr(42n),
-      signingKeyY: new Fr(1337n),
-    };
-
-    const { contract, actualSalt } = await deployConstantsContract(
-      wallet,
-      constants,
-    );
-
-    // Create capsule for the call
-    const capsule = createConstantsCapsule(
-      contract.address,
-      actualSalt,
-      constants,
-    );
-
-    const result = await contract.methods
-      .get_signing_key()
-      .with({ capsules: [capsule] })
-      .simulate({
-        from: alice,
-      });
-
-    expect(result[0]).toEqual(42n);
-    expect(result[1]).toEqual(1337n);
-  });
-
+  // Pure computation tests (no deployment, no published/unpublished distinction)
   it("should produce different addresses for different actualSalt", async () => {
-    const constants: Constants = {
-      signingKeyX: new Fr(111n),
-      signingKeyY: new Fr(222n),
-    };
-
     // Deploy two contracts with same constants but different actualSalt
     const { contract: contract1 } = await deployConstantsContract(
       wallet,
-      constants,
-      { actualSalt: new Fr(12345n) },
+      CONSTANTS_1,
+      { actualSalt: ACTUAL_SALT_1 },
     );
     const { contract: contract2 } = await deployConstantsContract(
       wallet,
-      constants,
-      { actualSalt: new Fr(54321n), skipClassPublication: true },
+      CONSTANTS_1,
+      { actualSalt: ACTUAL_SALT_2, skipClassPublication: true },
     );
 
     // Different actualSalt should produce different addresses
@@ -123,39 +61,97 @@ describe("Constants Contract - Initializerless Pattern", () => {
   });
 
   it("should compute correct contract salt", async () => {
-    const constants: Constants = {
-      signingKeyX: new Fr(1n),
-      signingKeyY: new Fr(2n),
-    };
     const actualSalt = new Fr(12345n);
-
-    const salt = await computeContractSalt(actualSalt, constants);
+    const salt = computeContractSalt(
+      ACTUAL_SALT_1,
+      serializeConstants(CONSTANTS_1),
+    );
 
     // Salt should be non-zero
     expect(salt.toBigInt()).not.toBe(0n);
 
     // Same inputs should produce same salt
-    const salt2 = await computeContractSalt(actualSalt, constants);
+    const salt2 = computeContractSalt(
+      ACTUAL_SALT_1,
+      serializeConstants(CONSTANTS_1),
+    );
     expect(salt.toBigInt()).toBe(salt2.toBigInt());
 
     // Different constants should produce different salt
-    const differentConstants: Constants = {
-      signingKeyX: new Fr(3n),
-      signingKeyY: new Fr(4n),
-    };
-    const differentSalt = await computeContractSalt(
-      actualSalt,
-      differentConstants,
+    const differentSalt = computeContractSalt(
+      ACTUAL_SALT_1,
+      serializeConstants(CONSTANTS_2),
     );
     expect(salt.toBigInt()).not.toBe(differentSalt.toBigInt());
 
     // Different actualSalt should produce different salt
-    const differentActualSalt = new Fr(54321n);
-    const saltWithDifferentActual = await computeContractSalt(
-      differentActualSalt,
-      constants,
+    const saltWithDifferentActual = computeContractSalt(
+      ACTUAL_SALT_2,
+      serializeConstants(CONSTANTS_1),
     );
     expect(salt.toBigInt()).not.toBe(saltWithDifferentActual.toBigInt());
+  });
+
+  // Published deployment tests
+  describe("Published", () => {
+    it("should deploy contract with constants and read them back", async () => {
+      const { contract, actualSalt, isPublished } =
+        await deployConstantsContract(wallet, CONSTANTS_1);
+
+      expect(isPublished).toBe(true);
+      expect(contract.address).toBeDefined();
+      expect(contract.address.toString()).not.toBe(
+        AztecAddress.ZERO.toString(),
+      );
+
+      const capsule = createConstantsCapsule(
+        contract.address,
+        actualSalt,
+        serializeConstants(CONSTANTS_1),
+      );
+
+      const result = await contract.methods
+        .get_signing_key()
+        .with({ capsules: [capsule] })
+        .simulate({
+          from: alice,
+        });
+
+      expect(result[0]).toEqual(CONSTANTS_1.signingKeyX.toBigInt());
+      expect(result[1]).toEqual(CONSTANTS_1.signingKeyY.toBigInt());
+    });
+  });
+
+  // Unpublished (PXE-only) deployment tests
+  describe("Unpublished (PXE-only)", () => {
+    it("should deploy unpublished contract and read constants back", async () => {
+      const { contract, actualSalt, isPublished } =
+        await deployConstantsContract(wallet, CONSTANTS_1, {
+          skipInstancePublication: true,
+        });
+
+      expect(isPublished).toBe(false);
+      expect(contract.address).toBeDefined();
+      expect(contract.address.toString()).not.toBe(
+        AztecAddress.ZERO.toString(),
+      );
+
+      const capsule = createConstantsCapsule(
+        contract.address,
+        actualSalt,
+        serializeConstants(CONSTANTS_1),
+      );
+
+      const result = await contract.methods
+        .get_signing_key()
+        .with({ capsules: [capsule] })
+        .simulate({
+          from: alice,
+        });
+
+      expect(result[0]).toEqual(CONSTANTS_1.signingKeyX.toBigInt());
+      expect(result[1]).toEqual(CONSTANTS_1.signingKeyY.toBigInt());
+    });
   });
 });
 
@@ -177,17 +173,11 @@ describe("Constants Contract - Mixed Usage (Constants + Storage)", () => {
   });
 
   it("should deploy contract with storage initialized", async () => {
-    const constants: Constants = {
-      signingKeyX: new Fr(111n),
-      signingKeyY: new Fr(222n),
-    };
-    const initialCounter = 42n;
-
     // Deploy using standard initializer pattern
     const { contract } = await deployMixedUsageContract(
       wallet,
-      constants,
-      initialCounter,
+      CONSTANTS_1,
+      INITIAL_COUNTER,
     );
 
     // Verify contract was deployed
@@ -198,20 +188,14 @@ describe("Constants Contract - Mixed Usage (Constants + Storage)", () => {
     const counter = await contract.methods.get_counter().simulate({
       from: alice,
     });
-    expect(counter).toEqual(initialCounter);
+    expect(counter).toEqual(INITIAL_COUNTER);
   });
 
   it("should allow storage mutation via increment", async () => {
-    const constants: Constants = {
-      signingKeyX: new Fr(333n),
-      signingKeyY: new Fr(444n),
-    };
-    const initialCounter = 10n;
-
     const { contract } = await deployMixedUsageContract(
       wallet,
-      constants,
-      initialCounter,
+      CONSTANTS_1,
+      INITIAL_COUNTER,
     );
 
     // Increment counter via public function
@@ -221,36 +205,30 @@ describe("Constants Contract - Mixed Usage (Constants + Storage)", () => {
     const counter = await contract.methods.get_counter().simulate({
       from: alice,
     });
-    expect(counter).toEqual(initialCounter + 1n);
+    expect(counter).toEqual(INITIAL_COUNTER + 1n);
   });
 
   it("should fail constants verification in mixed usage (expected behavior)", async () => {
     // This test documents that in mixed usage with standard deployment,
     // constants verification will fail because the contract's salt is
     // computed from deployer-chosen values, not including the constants.
-    const constants: Constants = {
-      signingKeyX: new Fr(555n),
-      signingKeyY: new Fr(666n),
-    };
-    const initialCounter = 100n;
-
     const { contract, actualSalt } = await deployMixedUsageContract(
       wallet,
-      constants,
-      initialCounter,
+      CONSTANTS_1,
+      INITIAL_COUNTER,
     );
 
     // Storage still works
     const counter = await contract.methods.get_counter().simulate({
       from: alice,
     });
-    expect(counter).toEqual(initialCounter);
+    expect(counter).toEqual(INITIAL_COUNTER);
 
     // Create capsule for the call
     const capsule = createConstantsCapsule(
       contract.address,
       actualSalt,
-      constants,
+      serializeConstants(CONSTANTS_1),
     );
 
     // But constants verification fails because:
@@ -270,23 +248,17 @@ describe("Constants Contract - Mixed Usage (Constants + Storage)", () => {
     // 1. Verifies constants in private context
     // 2. Enqueues a public call to increment storage
     // Due to mixed usage, the constants verification step fails.
-    const constants: Constants = {
-      signingKeyX: new Fr(777n),
-      signingKeyY: new Fr(888n),
-    };
-    const initialCounter = 50n;
-
     const { contract, actualSalt } = await deployMixedUsageContract(
       wallet,
-      constants,
-      initialCounter,
+      CONSTANTS_1,
+      INITIAL_COUNTER,
     );
 
     // Create capsule for the call
     const capsule = createConstantsCapsule(
       contract.address,
       actualSalt,
-      constants,
+      serializeConstants(CONSTANTS_1),
     );
 
     // The private function fails at Constants::init
@@ -302,6 +274,6 @@ describe("Constants Contract - Mixed Usage (Constants + Storage)", () => {
     const counter = await contract.methods.get_counter().simulate({
       from: alice,
     });
-    expect(counter).toEqual(initialCounter);
+    expect(counter).toEqual(INITIAL_COUNTER);
   });
 });
