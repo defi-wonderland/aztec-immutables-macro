@@ -63,26 +63,3 @@ export async function setupTestSuite(
     accounts,
   };
 }
-
-/**
- * Deploys the Counter contract.
- * @param deployer - The wallet to deploy the contract with.
- * @param owner - The address of the owner of the contract.
- * @returns A deployed contract instance.
- */
-export async function deployCounter(
-  deployer: Wallet,
-  owner: AztecAddress,
-): Promise<CounterContract> {
-  const deployerAddress = (await deployer.getAccounts())[0]!.item;
-  const deployMethod = Contract.deploy(
-    deployer,
-    CounterContractArtifact,
-    [owner],
-    "constructor", // not actually needed since it's the default constructor
-  );
-  const contract = await deployMethod.send({
-    from: deployerAddress,
-  });
-  return contract as CounterContract;
-}

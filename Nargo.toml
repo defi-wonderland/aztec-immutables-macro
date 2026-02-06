@@ -1,16 +1,9 @@
 [workspace]
 members = [
-    "src/nr/counter_contract",
     "src/nr/constants_contract",
     "src/nr/schnorr_account_contract",
     "src/nr/schnorr_constants_account_contract",
 ]
 
 [benchmark]
-counter = "benchmarks/counter.benchmark.ts"
-constants = "benchmarks/constants.benchmark.ts"
-# Note: schnorr_account benchmark is disabled because the SDK's SchnorrAccountContract
-# doesn't expose get_signing_public_key. Use schnorr_constants_account for comparison.
-schnorr_constants_account = "benchmarks/schnorr_constants_account.benchmark.ts"
-# Comparison benchmark: both account types calling counter.increment()
-account_counter_comparison = "benchmarks/account_counter_comparison.benchmark.ts"
+account = "benchmarks/account.benchmark.ts"
