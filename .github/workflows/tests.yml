@@ -74,6 +74,9 @@ jobs:
       - name: Codegen
         run: yarn codegen
 
+      - name: Build aztec-standards artifacts
+        run: yarn build-aztec-standards
+
       - name: Run nr tests
         run: yarn test:nr
 
