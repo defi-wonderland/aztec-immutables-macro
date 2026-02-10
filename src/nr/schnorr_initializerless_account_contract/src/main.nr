@@ -1,4 +1,4 @@
-//! # Schnorr Constants Account Contract
+//! # Schnorr Initializerless Account Contract
 //!
 //! An account contract using Schnorr signatures for authentication with the
 //! **initializerless constants** pattern. The signing public key is committed
@@ -30,7 +30,7 @@ mod public_key;
 use aztec::macros::aztec;
 
 #[aztec]
-pub contract SchnorrConstantsAccount {
+pub contract SchnorrInitializerlessAccount {
     use dep::aztec::{
         authwit::{
             account::AccountActions,
@@ -50,7 +50,7 @@ pub contract SchnorrConstantsAccount {
 
     use crate::public_key::PublicKey;
 
-    use initializerless::constants;
+    use constants::constants;
 
     /// Constants struct containing the signing public key.
     #[constants]

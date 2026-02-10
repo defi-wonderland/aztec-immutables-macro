@@ -1,6 +1,6 @@
-/// # Constants Macro for Initializerless Constants Pattern
+/// # Constants Macro
 ///
-/// This macro auto-generates the boilerplate code for the initializerless constants pattern,
+/// This macro auto-generates the verification and loading logic for the constants pattern,
 /// similar to how `#[storage]` works for state variables.
 ///
 /// ## Usage
@@ -55,7 +55,7 @@
 /// }
 /// ```
 
-/// The `#[constants]` macro for initializerless constants pattern.
+/// The `#[constants]` macro for the constants pattern.
 ///
 /// This macro:
 /// - Validates the struct is named `Constants`

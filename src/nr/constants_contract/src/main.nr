@@ -36,7 +36,7 @@
 //! ## Usage Example
 //!
 //! ```noir
-//! use initializerless::constants;
+//! use constants::constants;
 //!
 //! #[constants]
 //! pub struct Constants {
@@ -73,7 +73,7 @@ pub contract ConstantsContract {
         macros::{functions::{external, initializer, noinitcheck, view}, storage::storage},
         state_vars::PublicMutable,
     };
-    use initializerless::constants;
+    use constants::constants;
 
     /// Contract storage - demonstrates coexistence with constants pattern
     #[storage]

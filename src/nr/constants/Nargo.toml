@@ -1,5 +1,5 @@
 [package]
-name = "initializerless"
+name = "constants"
 type = "lib"
 compiler_version = ">=1.0.0"
 authors = [""]
