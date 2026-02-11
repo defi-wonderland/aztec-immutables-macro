@@ -1,6 +1,6 @@
 [package]
-name = "counter_contract"
-type = "contract"
+name = "initializerless"
+type = "lib"
 compiler_version = ">=1.0.0"
 authors = [""]
 
