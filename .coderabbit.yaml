@@ -1,0 +1,158 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+tone_instructions: >
+  Be direct and technical. Focus on security, correctness, and privacy
+  implications in this Aztec/Noir smart contract codebase.
+
+reviews:
+  profile: assertive
+  request_changes_workflow: true
+  review_status: true
+  commit_status: true
+  collapse_walkthrough: false
+  changed_files_summary: true
+  sequence_diagrams: true
+  suggested_labels: false
+  suggested_reviewers: true
+  poem: false
+
+  path_filters:
+    - "!artifacts/**"
+    - "!target/**"
+    - "!node_modules/**"
+    - "!store/**"
+    - "!store-*/**"
+    - "!codegenCache.json"
+    - "!yarn.lock"
+    - "!benchmarks/*.json"
+    - "!.tsbuildinfo"
+
+  path_instructions:
+    - path: "src/**/main.nr"
+      instructions: >
+        This is an Aztec smart contract written in Noir. Review with focus on:
+
+
+        **Authorization (CRITICAL):**
+        - Every function operating on behalf of another address MUST call
+          `_validate_from_private` or `_validate_from_public` at the start.
+        - Missing authwit checks are critical security vulnerabilities.
+
+
+        **Internal function protection (CRITICAL):**
+        - All public state-mutating functions called from private functions MUST
+          have the `#[internal]` attribute. Without it, anyone can call them
+          directly and bypass private validation.
+
+
+        **Commitment pattern (CRITICAL):**
+        - Private-to-public transitions must use two-phase commit: private function
+          creates commitment, public `#[internal]` function validates and applies it.
+
+
+        **Note handling (CRITICAL):**
+        - Every spent note must emit a nullifier (via `set.remove()` or `pop_notes`).
+          Missing nullifiers cause double-spend vulnerabilities.
+        - All private note creation must use `encode_and_encrypt_note` with the
+          correct recipient address.
+
+
+        **Code organization:**
+        - Function order: initializers, private, public, view, unconstrained,
+          internal, then library methods.
+        - Imports grouped: Aztec core, external libs, custom types, globals.
+        - Documentation uses `/// @notice`, `/// @dev`, `/// @param`, `/// @return`.
+        - Library methods prefixed with underscore, internal functions suffixed
+          with `_internal`.
+
+
+        **Error handling:**
+        - Assert messages should be descriptive and guide users to fix issues.
+        - Balance checks should use natural underflow or explicit asserts.
+
+    - path: "src/**/types/**/*.nr"
+      instructions: >
+        Custom Noir type definitions for Aztec contracts. Verify:
+        - Types implement required traits (NoteHash, Serialize, Deserialize).
+        - Note types have correct field layouts for nullifier computation.
+        - BalanceSet operations handle multi-note edge cases.
+        - No unnecessary public exposure of private state types.
+
+    - path: "src/**/test/**/*.nr"
+      instructions: >
+        Noir unit tests using TestEnvironment. Check for:
+        - Test coverage of both success and failure paths.
+        - Authorization failure tests (unauthorized caller should revert).
+        - Balance validation (insufficient balance should revert).
+        - Edge cases (zero amounts, max values, self-transfers).
+        - Proper use of `env.advance_block_by(1)` after private operations.
+        - `#[test(should_fail_with = "...")]` for expected failures with correct messages.
+        - All test functions must be `unconstrained fn`.
+
+    - path: "src/**/test/utils.nr"
+      instructions: >
+        Shared test utilities. Ensure:
+        - Setup functions return consistent tuples for destructuring.
+        - Balance checker functions exist for both private and public state.
+        - Mint/transfer helpers cover common test scenarios.
+        - Account registration uses `cheatcodes::add_account(secret)`.
+
+    - path: "src/ts/test/**/*.ts"
+      instructions: >
+        TypeScript integration tests using @aztec/aztec.js. Verify:
+        - Tests use generated artifacts from the artifacts/ directory.
+        - PXE setup and teardown in lifecycle hooks (beforeAll/afterAll).
+        - Wallet management uses AccountWalletWithSecretKey.
+        - Transaction execution follows `.send().wait()` pattern.
+        - Error handling tests verify revert messages.
+
+    - path: "benchmarks/**/*.ts"
+      instructions: >
+        Performance benchmark files. Ensure benchmark operations are realistic
+        and cover critical paths (mint, transfer, burn) for each contract type.
+
+    - path: "src/escrow_contract/**/*.nr"
+      instructions: >
+        Escrow contract with logic contract pattern. Pay special attention to:
+        - `_assert_msg_sender` validates caller matches the logic contract stored
+          in the deployment salt.
+        - `_check_escrow()` validates all contract instance properties (class_id,
+          public_keys, initialization_hash).
+        - Logic contract binding must be enforced via deployment salt.
+        - Stateless escrow design requires initialization_hash and deployer to be null.
+
+    - path: "**/*.toml"
+      instructions: >
+        Noir project configuration. Verify:
+        - Dependencies match the project Aztec version (check package.json config.aztecVersion).
+        - Workspace members in root Nargo.toml include all contract packages.
+        - Package names follow snake_case naming conventions.
+
+    - path: ".github/workflows/**"
+      instructions: >
+        CI/CD workflows. Ensure:
+        - Aztec version is detected dynamically from package.json config.
+        - Docker and sandbox setup steps are present for integration tests.
+        - Test commands match package.json scripts.
+        - Concurrency groups prevent duplicate runs.
+        - Node.js version matches project requirements (>=22).
+
+  auto_review:
+    drafts: false
+    base_branches:
+      - dev
+      - main
+
+  tools:
+    eslint:
+      enabled: true
+    semgrep:
+      enabled: true
+
+chat:
+  integrations:
+    linear:
+      usage: enabled
+
+knowledge_base:
+  linear:
+    usage: enabled
