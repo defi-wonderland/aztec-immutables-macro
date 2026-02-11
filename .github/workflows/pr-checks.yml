@@ -1,0 +1,19 @@
+name: PR Checks
+
+on: [pull_request]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    uses: defi-wonderland/aztec-ci-actions/.github/workflows/run-tests.yml@dev
+    with:
+      run-benchmark: true
+      run-js-tests: true
+      run-noir-tests: true
+    secrets: inherit
+    permissions:
+      pull-requests: write
+      issues: write
