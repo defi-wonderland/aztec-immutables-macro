@@ -13,9 +13,12 @@
  */
 
 import { AztecAddress } from "@aztec/aztec.js/addresses";
-import { Fr } from "@aztec/aztec.js/fields";
 import { type ContractFunctionInteractionCallIntent } from "@aztec/aztec.js/authorization";
+import { getContractInstanceFromInstantiationParams } from "@aztec/aztec.js/contracts";
+import { SponsoredFeePaymentMethod } from "@aztec/aztec.js/fee/testing";
+import { Fr } from "@aztec/aztec.js/fields";
 import { type AztecLMDBStoreV2 } from "@aztec/kv-store/lmdb-v2";
+import { SponsoredFPCContract } from "@aztec/noir-contracts.js/SponsoredFPC";
 import { TestWallet } from "@aztec/test-wallet/server";
 import {
   Benchmark,
@@ -45,6 +48,7 @@ interface AccountBenchmarkContext extends BenchmarkContext {
   dripper: DripperContract;
   constantsAccount: DeployedSchnorrConstantsAccount;
   standardAccountAddress: AztecAddress;
+  sponsoredPaymentMethod: SponsoredFeePaymentMethod;
 }
 
 // ---------------------------------------------------------------------------
@@ -58,6 +62,22 @@ export default class AccountComparisonBenchmark extends Benchmark {
       true,
     );
     const [deployer] = accounts;
+
+    // Register the canonical SponsoredFPC for fee sponsorship.
+    // This contract is pre-deployed on the sandbox with FJ balance,
+    // allowing accounts without fee juice to send transactions.
+    const sponsoredFPCInstance =
+      await getContractInstanceFromInstantiationParams(
+        SponsoredFPCContract.artifact,
+        { salt: new Fr(0n) },
+      );
+    await wallet.registerContract(
+      sponsoredFPCInstance,
+      SponsoredFPCContract.artifact,
+    );
+    const sponsoredPaymentMethod = new SponsoredFeePaymentMethod(
+      sponsoredFPCInstance.address,
+    );
 
     // Deploy Dripper (faucet) and Token contracts
     const dripper = await DripperContract.deploy(wallet).send({
@@ -97,12 +117,16 @@ export default class AccountComparisonBenchmark extends Benchmark {
     await dripper.methods
       .drip_to_private(token.address, PREFUND_AMOUNT)
       .with({ capsules: [capsule] })
-      .send({ from: constantsAccount.address });
+      .send({
+        from: constantsAccount.address,
+        fee: { paymentMethod: sponsoredPaymentMethod },
+      });
 
     // Fund standard account
-    await dripper.methods
-      .drip_to_private(token.address, PREFUND_AMOUNT)
-      .send({ from: standardAccountAddress });
+    await dripper.methods.drip_to_private(token.address, PREFUND_AMOUNT).send({
+      from: standardAccountAddress,
+      fee: { paymentMethod: sponsoredPaymentMethod },
+    });
 
     return {
       store,
@@ -112,6 +136,8 @@ export default class AccountComparisonBenchmark extends Benchmark {
       dripper,
       constantsAccount,
       standardAccountAddress,
+      sponsoredPaymentMethod,
+      feePaymentMethod: sponsoredPaymentMethod,
     };
   }
 

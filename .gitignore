@@ -9,3 +9,5 @@ codegenCache.json
 .cursor
 store
 store-*
+
+benchmarks/*.benchmark.json

@@ -29,7 +29,7 @@
     "@aztec/pxe": "4.0.0-nightly.20260204",
     "@aztec/stdlib": "4.0.0-nightly.20260204",
     "@aztec/test-wallet": "4.0.0-nightly.20260204",
-    "@defi-wonderland/aztec-benchmark": "github:defi-wonderland/aztec-benchmark#chore/v4",
+    "@defi-wonderland/aztec-benchmark": "https://github.com/defi-wonderland/aztec-benchmark/releases/download/prerelease-bc8e22c/defi-wonderland-aztec-benchmark-4.0.0-nightly.20260204-prerelease.bc8e22c.tgz",
     "@types/node": "25.0.2"
   },
   "devDependencies": {
