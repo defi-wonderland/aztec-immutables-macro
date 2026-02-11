@@ -9,8 +9,5 @@ members = [
 [benchmark]
 counter = "benchmarks/counter.benchmark.ts"
 constants = "benchmarks/constants.benchmark.ts"
-# Note: schnorr_account benchmark is disabled because the SDK's SchnorrAccountContract
-# doesn't expose get_signing_public_key. Use schnorr_constants_account for comparison.
-schnorr_constants_account = "benchmarks/schnorr_constants_account.benchmark.ts"
-# Comparison benchmark: both account types calling counter.increment()
+schnorr_initializerless_account = "benchmarks/schnorr_initializerless_account.benchmark.ts"
 account_counter_comparison = "benchmarks/account_counter_comparison.benchmark.ts"

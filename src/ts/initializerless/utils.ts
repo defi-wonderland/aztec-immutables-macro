@@ -26,7 +26,11 @@
 
 import { Fr } from "@aztec/aztec.js/fields";
 import { poseidon2Hash } from "@aztec/foundation/crypto/sync";
-import { Capsule } from "@aztec/stdlib/tx";
+import {
+  Capsule,
+  ExecutionPayload,
+  mergeExecutionPayloads,
+} from "@aztec/stdlib/tx";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { PublicKeys } from "@aztec/stdlib/keys";
 import {
@@ -245,6 +249,10 @@ export async function deployWithConstants(
       serializedConstants,
     );
 
+    // Build execution payloads and merge into a single atomic transaction
+    // (mirrors how DeployMethod merges class + instance publication)
+    const payloads: ExecutionPayload[] = [];
+
     // Publish the contract class if not skipped
     if (!options?.skipClassPublication) {
       const contractClass = await getContractClassFromArtifact(artifact);
@@ -255,15 +263,19 @@ export async function deployWithConstants(
           wallet,
           artifact,
         );
-        await publishClassInteraction.send({ from: deployerAddress });
+        payloads.push(await publishClassInteraction.request());
       }
     }
 
-    // Publish the contract instance with capsule
+    // Publish the contract instance
     const publishInstanceInteraction = publishInstance(wallet, instance);
-    await publishInstanceInteraction
-      .with({ capsules: [capsule] })
-      .send({ from: deployerAddress });
+    payloads.push(
+      await publishInstanceInteraction.with({ capsules: [capsule] }).request(),
+    );
+
+    // Send as a single merged transaction
+    const merged = mergeExecutionPayloads(payloads);
+    await wallet.sendTx(merged, { from: deployerAddress });
 
     isPublished = true;
   }

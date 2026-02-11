@@ -1,225 +1,189 @@
-# Aztec Noir Boilerplate
+# Constants Macro
 
-<div align="center"><strong>Start your next Aztec project with Noir in seconds</strong></div>
-<div align="center">A highly scalable foundation for building privacy-preserving smart contracts on Aztec</div>
+A Noir macro for committing immutable constants into an Aztec contract's address, eliminating the need for initializer functions.
 
-<br />
+## Overview
 
-## Features
+On Aztec, contracts that need immutable values — such as an account contract's signing public key — must currently use an initializer function that writes to private storage (e.g. `SinglePrivateImmutable`). This requires a constructor transaction, note delivery for setup, and initialization checks on subsequent function calls.
 
-<dl>
-  <dt>Sample Noir contract</dt>
-  <dd>Basic Counter contract demonstrating private-to-public execution patterns and owner access control.</dd>
+The `#[constants]` macro offers a different approach: constants are encoded into the contract's `salt`, which is part of the address derivation. At runtime, constants are loaded from capsule storage and verified against the salt committed in the contract address. The constants are cryptographically fixed to the contract address.
 
-  <dt>Aztec development setup</dt>
-  <dd>Pre-configured Aztec workspace with Noir contract compilation and TypeScript artifact generation.</dd>
+The first use case is an **initializerless Schnorr account contract** that stores its signing public key as a constant, removing the need for an initializer entirely.
 
-  <dt>TypeScript integration</dt>
-  <dd>Complete TypeScript setup with generated contract bindings and utilities for interacting with Aztec sandbox.</dd>
+## How It Works
 
-  <dt>Comprehensive testing</dt>
-  <dd>Noir unit tests for contract logic and TypeScript integration tests using Vitest. Tests automatically start and manage the Aztec sandbox - no manual setup required.</dd>
+A contract's address is derived from public keys, contract class ID, salt, initialization hash, and deployer. The `salt` has no protocol-level constraints — it's a free field in the address commitment. We encode constants into it:
 
-  <dt>Automated benchmarking</dt>
-  <dd>GitHub Actions workflow that automatically benchmarks your contracts on every PR, comparing Gates, DA Gas and L2 Gas against the base branch.</dd>
-
-  <dt>Development tooling</dt>
-  <dd>Integrated linting with Prettier and streamlined build commands for rapid development.</dd>
-</dl>
-
-## Setup
-
-1. Install Aztec by following the instructions from [their documentation](https://docs.aztec.network/developers/getting_started).
-2. Install the dependencies by running: `yarn install`
-3. Ensure you have Docker installed and running (required for Aztec sandbox)
-
-## Build
-
-The complete build pipeline includes cleaning, compiling Noir contracts, and generating TypeScript artifacts:
-
-```bash
-yarn ccc
+```
+salt = poseidon2_hash([actual_salt, constant_0, constant_1, ...])
 ```
 
-This runs:
-- `yarn clean` - Removes all build artifacts
-- `yarn compile` - Compiles Noir contracts using aztec
-- `yarn codegen` - Generates TypeScript bindings from compiled contracts
+Where `actual_salt` is a random nonce for address uniqueness.
 
-## Running tests
+**Deployment (TypeScript):**
 
-### Prerequisites
-The tests **automatically start and manage the Aztec sandbox** for you. 
+1. Serialize the constants into fields (e.g., a public key becomes `[x, y]`).
+2. Generate a random `actual_salt`.
+3. Compute `salt = poseidon2_hash([actual_salt, constant_0, constant_1, ...])`.
+4. Store `[actual_salt, constant_0, constant_1, ...]` in PXE capsule storage at a well-known slot.
+5. Deploy the contract with the derived salt — no initializer needed.
 
-**Option 1: Automatic**
-Just run the tests and the sandbox will be handled automatically:
+**Verification (Noir):**
 
-```bash
-yarn test  # Sandbox starts automatically and stops when tests complete
+1. Load capsule data from an unconstrained oracle.
+2. Compute `salt = poseidon2_hash(capsule_data)`.
+3. Fetch the contract instance via `get_contract_instance(address)`.
+4. Assert that the computed salt matches `instance.salt`.
+5. Deserialize and return the constants.
+
+Even though capsule data comes from an unconstrained oracle, security is guaranteed because `salt` is part of the contract address computation. If the wrong data is provided, `poseidon2_hash` won't match `instance.salt`.
+
+## Usage
+
+### 1. Add the dependency
+
+In your contract's `Nargo.toml`:
+
+```toml
+[dependencies]
+constants = { path = "../constants" }
 ```
 
-**Option 2: Manual Control** 
-If you prefer to manage the sandbox yourself (e.g., for debugging or multiple test runs):
+### 2. Define your constants
 
-```bash
-aztec start --sandbox  # Start manually in separate terminal
-yarn test              # Run tests against existing sandbox
-```
+```noir
+use constants::constants;
 
-The sandbox runs on `http://localhost:8080` by default.
-
-### All tests
-Run both Noir contract tests and TypeScript integration tests:
-
-```bash
-yarn test
-```
-
-### Noir tests only
-Test your contract logic directly:
-
-```bash
-yarn test:nr
-```
-
-### TypeScript integration tests only
-Test contract interactions through TypeScript:
-
-```bash
-yarn test:js
-```
-
-## Benchmarking
-
-This repository includes automated benchmarking that measures and compares performance metrics across pull requests.
-
-### Metrics tracked
-- **Gates**: Total gate count in zero-knowledge circuits (measures circuit complexity)
-- **DA Gas**: Data Availability gas costs
-- **L2 Gas**: Layer 2 execution gas costs
-
-### GitHub Actions integration
-Every pull request automatically:
-1. Runs benchmarks on the base branch
-2. Runs benchmarks on your PR branch
-3. Generates a comparison report as a PR comment
-4. Shows performance improvements or regressions
-
-### Running benchmarks locally
-
-Benchmarks also benefit from automatic sandbox management:
-
-```bash
-# Option 1: Automatic sandbox management (recommended)
-yarn benchmark  # Sandbox starts automatically
-
-# Option 2: Manual sandbox control
-aztec start --sandbox  # Start manually in separate terminal
-yarn benchmark          # Run against existing sandbox
-```
-
-Benchmark results are saved to `benchmarks/` directory.
-
-### Adding new benchmarks
-
-Create a new benchmark file extending the base `Benchmark` class or add a new method line to your existing setup:
-
-```typescript
-import { Benchmark } from '@defi-wonderland/aztec-benchmark';
-
-export class MyContractBenchmark extends Benchmark {
-  async setup() {
-    // Initialize your contract and dependencies
-  }
-
-  getMethods(context: CounterBenchmarkContext): BenchmarkedInteraction[] {
-    const { contract, accounts } = context;
-    const [alice] = accounts;
-
-    const methods = [
-      // Add the function calls that you want to benchmark here
-      contract.withWallet(alice).methods.method(1),
-    ] as BenchmarkedInteraction[];
-
-    return methods.filter(Boolean);
-  }
+#[derive(Deserialize)]
+#[constants]
+pub struct Constants {
+    pub signing_public_key: PublicKey,
 }
 ```
 
-## Project structure
+Requirements:
+- The struct **must** be named `Constants`
+- `#[derive(Deserialize)]` is required
+- Fields can be any type that implements `Serialize` and `Deserialize`
+
+### 3. Use constants in your contract
+
+The macro generates `Constants::init()` for constrained contexts and `Constants::init_unconstrained()` for utility functions.
+
+```rust
+// In a #[external("private")] function
+#[external("private")]
+fn get_signing_public_key() -> pub (Field, Field) {
+    let constants = Constants::init(self.context);
+    let public_key = constants.signing_public_key;
+    (public_key.x, public_key.y)
+}
+
+// In a #[contract_library_method] function
+#[contract_library_method]
+fn is_valid_impl(context: &mut PrivateContext, outer_hash: Field) -> bool {
+    let constants = Constants::init(context);
+    let public_key = constants.signing_public_key;
+    // verify signature with public_key...
+}
+
+// In a utility (unconstrained) function
+#[external("utility")]
+unconstrained fn lookup_validity(consumer: AztecAddress, inner_hash: Field) -> bool {
+    let constants = Constants::init_unconstrained(self.context);
+    let public_key = constants.signing_public_key;
+    // ...
+}
+```
+
+### Compatibility with storage
+
+The constants pattern is compatible with `#[storage]`. Both can coexist in the same contract — constants are verified against `salt`, while storage is managed via the state tree. See `src/nr/constants_contract` for an example of mixed usage.
+
+## Reference Implementation: Initializerless Schnorr Account
+
+The `schnorr_initializerless_account_contract` demonstrates the pattern applied to an account contract. It replaces `SinglePrivateImmutable<PublicKeyNote>` + initializer with a `Constants` struct:
+
+```rust
+use constants::constants;
+
+#[derive(Deserialize)]
+#[constants]
+pub struct Constants {
+    pub public_key: PublicKey,
+}
+
+#[contract_library_method]
+fn is_valid_impl(context: &mut PrivateContext, outer_hash: Field) -> bool {
+    let constants = Constants::init(context);
+    let public_key = constants.public_key;
+    // verify Schnorr signature...
+}
+```
+
+No constructor, no note delivery, no `#[noinitcheck]`. The contract is immediately usable after deployment.
+
+A standard `schnorr_account_contract` using the traditional initializer pattern is included for comparison.
+
+## Project Structure
 
 ```
-├── src/
-│   ├── nr/                     # Noir contracts
-│   │   └── counter_contract/   # Example Counter contract
-│   ├── ts/                     # TypeScript tests and utilities
-│   └── artifacts/              # Generated TypeScript bindings
-├── benchmarks/                 # Performance benchmarking
-├── target/                     # Compiled Noir artifacts
-└── .github/
-    └── workflows/              # CI/CD pipelines
+src/nr/
+├── constants/                # The #[constants] macro library
+│   └── src/macro.nr
+├── schnorr_initializerless_account_contract/  # Initializerless Schnorr account
+│   └── src/
+│       ├── main.nr
+│       └── public_key.nr
+├── schnorr_account_contract/                  # Standard Schnorr account (for comparison)
+│   └── src/
+│       ├── main.nr
+│       └── public_key_note.nr
+└── constants_contract/                        # Example: constants + storage coexistence
+    └── src/main.nr
 ```
 
-## Contract architecture
+## Development
 
-The Counter contract demonstrates key Aztec patterns:
+### Prerequisites
 
-### Private-to-Public execution pattern
-The `increment()` function is private but enqueues a public `increment_internal()` call. This pattern maintains privacy while updating public state.
+- [Aztec CLI](https://docs.aztec.network/)
+- [Noir](https://noir-lang.org/) (`>=1.0.0`)
+- Node.js (`>=22.0.0`)
+- Yarn (`>=1.22.0`)
 
-### Storage
-- **Owner**: Immutable address set at deployment
-- **Counter**: Mutable public value
-
-### Functions
-- `constructor`: Initializes contract with owner
-- `get_owner`: Returns owner address (public)
-- `increment`: Private function that enqueues public state update
-- `increment_internal`: Internal public function for state modification
-- `get_counter`: Returns current counter value (public)
-
-## Development workflow
-
-1. **Modify Noir contracts** in `src/nr/`
-2. **Run `yarn build`** to rebuild and regenerate TypeScript artifacts
-3. **Write tests** in `src/ts/` using generated artifacts
-4. **Run tests** with `yarn test` (sandbox starts automatically)
-5. **Format code** with `yarn lint:prettier`
-6. **Create PR** and review automated benchmark results
-
-## Code quality
-
-Format all TypeScript and JavaScript files:
+### Setup
 
 ```bash
-yarn lint:prettier
+yarn install
 ```
 
-## Commit Guidelines
+### Build
 
-This project uses [Conventional Commits](https://www.conventionalcommits.org/) to ensure consistent and meaningful commit messages. All commits are automatically validated using commitlint.
+```bash
+# Clean, compile Noir contracts, and generate TypeScript artifacts
+yarn ccc
+```
 
+### Test
 
-## Contributing
+```bash
+# Run all tests (Noir + TypeScript)
+yarn test
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Write tests for your changes
-4. Ensure all tests pass and benchmarks are acceptable
-5. Follow commit guidelines
-6. Commit your changes (`git commit -m 'feat: add amazing feature'`)
-7. Push to the branch (`git push origin feature/amazing-feature`)
-8. Open a Pull Request
+# Run Noir tests only
+yarn test:nr
 
-The automated benchmarking will run on your PR, providing performance insights compared to the base branch.
+# Run TypeScript tests only
+yarn test:js
+```
 
-## Resources
+### Benchmark
 
-- [Aztec Documentation](https://docs.aztec.network/)
-- [Noir Language Documentation](https://noir-lang.org/)
-- [Aztec Sandbox Quickstart](https://docs.aztec.network/developers/getting_started)
-- [Aztec Contracts Guide](https://docs.aztec.network/aztec/smart_contracts_overview)
+```bash
+yarn benchmark
+```
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT
