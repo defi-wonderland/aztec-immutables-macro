@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 tone_instructions: >
-  Be direct and technical. Focus on security, correctness, and privacy
-  implications in this Aztec/Noir smart contract codebase.
+  Be direct and technical. Focus on security, correctness, and the
+  initializerless constants pattern in this Aztec / Noir codebase.
 
 reviews:
   profile: assertive
@@ -19,41 +19,56 @@ reviews:
     - "!artifacts/**"
     - "!target/**"
     - "!node_modules/**"
-    - "!store/**"
     - "!store-*/**"
     - "!codegenCache.json"
     - "!yarn.lock"
     - "!benchmarks/*.json"
     - "!.tsbuildinfo"
+    - "!src/artifacts/**"
 
   path_instructions:
-    - path: "src/**/main.nr"
+    - path: "src/nr/*_contract/src/main.nr"
       instructions: >
-        This is an Aztec smart contract written in Noir. Review with focus on:
+        Aztec smart contracts written in Noir. Review with focus on:
 
 
-        **Authorization (CRITICAL):**
-        - Every function operating on behalf of another address MUST call
-          `_validate_from_private` or `_validate_from_public` at the start.
-        - Missing authwit checks are critical security vulnerabilities.
+        **Initializerless constants pattern (CRITICAL):**
+        - Contracts using constants MUST define a `#[constants] pub struct Constants`
+          with the correct fields.
+        - `Constants::init(self.context)` must be called in every private function
+          that needs constants. The returned values are verified against the
+          contract's `salt` via poseidon2 hash.
+        - `Constants::init_unconstrained(self.context)` is ONLY allowed in
+          `#[external("utility")] unconstrained fn` — never in constrained context.
+        - Functions using constants without an initializer MUST have `#[noinitcheck]`
+          because the deployment nullifier won't exist.
 
 
-        **Internal function protection (CRITICAL):**
-        - All public state-mutating functions called from private functions MUST
-          have the `#[internal]` attribute. Without it, anyone can call them
-          directly and bypass private validation.
+        **Mixed usage (constants + storage):**
+        - Contracts can combine `#[constants]` with `#[storage]` — they use
+          different mechanisms (salt verification vs state tree).
+        - When both are used, the deployer must compute salt from both `actual_salt`
+          AND the serialized constants.
 
 
-        **Commitment pattern (CRITICAL):**
-        - Private-to-public transitions must use two-phase commit: private function
-          creates commitment, public `#[internal]` function validates and applies it.
+        **Function access control (CRITICAL, Aztec v4):**
+        - Public state-mutating functions called only by the contract itself MUST
+          use `#[only_self]` (NOT `#[internal]`). `#[only_self]` marks external
+          functions callable only by the contract itself. `#[internal]` is for
+          non-externally-callable internal functions.
+        - Private-to-public transitions: private function enqueues a public
+          `#[only_self]` function via `self.enqueue_self`.
 
 
-        **Note handling (CRITICAL):**
-        - Every spent note must emit a nullifier (via `set.remove()` or `pop_notes`).
-          Missing nullifiers cause double-spend vulnerabilities.
-        - All private note creation must use `encode_and_encrypt_note` with the
-          correct recipient address.
+        **Account contract specifics (Aztec v4):**
+        - Entrypoint signature: `fn entrypoint(app_payload: AppPayload, fee_payment_method: u8, cancellable: bool)`.
+        - Entrypoints MUST have `#[noinitcheck]` and `#[nophasecheck]`.
+        - SchnorrConstantsAccount: signing key is loaded via constants pattern,
+          not `SinglePrivateImmutable` storage. Verify Schnorr signature verification.
+        - `is_valid_impl` must be a `#[contract_library_method]` taking `&mut PrivateContext`.
+        - `lookup_validity` must be `#[external("utility")] unconstrained fn` and
+          check both signature validity AND nullifier consumption status.
+        - Note delivery uses `MessageDelivery.ONCHAIN_CONSTRAINED` in v4.
 
 
         **Code organization:**
@@ -67,72 +82,89 @@ reviews:
 
         **Error handling:**
         - Assert messages should be descriptive and guide users to fix issues.
-        - Balance checks should use natural underflow or explicit asserts.
+        - `unsafe` blocks must include a `// Safety:` comment explaining why they are safe.
 
-    - path: "src/**/types/**/*.nr"
+    - path: "src/nr/initializerless/src/**/*.nr"
       instructions: >
-        Custom Noir type definitions for Aztec contracts. Verify:
-        - Types implement required traits (NoteHash, Serialize, Deserialize).
-        - Note types have correct field layouts for nullifier computation.
-        - BalanceSet operations handle multi-note edge cases.
-        - No unnecessary public exposure of private state types.
+        Core library implementing the `#[constants]` comptime macro. This is the
+        heart of the initializerless constants pattern. Review with extreme care:
 
-    - path: "src/**/test/**/*.nr"
+
+        **Macro correctness (CRITICAL):**
+        - Must validate struct is named `Constants`.
+        - Must derive Serialize/Deserialize if not already implemented.
+        - Generated `init()` must: load capsule, compute poseidon2 hash,
+          verify against `instance.salt`, deserialize constants.
+        - Generated `init_unconstrained()` must skip verification (used only in
+          utility functions).
+        - `CONSTANTS_SLOT` must be derived from `poseidon2_hash_bytes("CONSTANTS_SLOT".as_bytes())`.
+
+
+        **Deserialization (CRITICAL):**
+        - Custom `derive_deserialize_if_not_implemented` uses fully-qualified
+          `aztec::protocol::traits::Deserialize` to avoid import issues in macro expansion.
+        - Field offset computation must be correct for multi-field structs.
+        - `stream_deserialize` implementation must match `deserialize`.
+
+
+        **Capsule data layout:**
+        - Array is `[actual_salt, field_0, field_1, ...]` with size `1 + Serialize::N`.
+        - First element is `actual_salt`, remaining are serialized constant fields.
+
+    - path: "src/nr/constants/src/**/*.nr"
+      instructions: >
+        Alternative constants library (re-exports the macro). Verify module
+        structure is correct and `pub use` paths are consistent.
+
+    - path: "src/nr/*_contract/src/test/**/*.nr"
       instructions: >
         Noir unit tests using TestEnvironment. Check for:
         - Test coverage of both success and failure paths.
-        - Authorization failure tests (unauthorized caller should revert).
-        - Balance validation (insufficient balance should revert).
-        - Edge cases (zero amounts, max values, self-transfers).
+        - Edge cases (zero values, max values).
         - Proper use of `env.advance_block_by(1)` after private operations.
         - `#[test(should_fail_with = "...")]` for expected failures with correct messages.
         - All test functions must be `unconstrained fn`.
 
-    - path: "src/**/test/utils.nr"
+    - path: "src/nr/**/public_key*.nr"
       instructions: >
-        Shared test utilities. Ensure:
-        - Setup functions return consistent tuples for destructuring.
-        - Balance checker functions exist for both private and public state.
-        - Mint/transfer helpers cover common test scenarios.
-        - Account registration uses `cheatcodes::add_account(secret)`.
+        Custom Noir type definitions for public key notes. Verify:
+        - Types implement required traits (Serialize, Deserialize, and
+          NoteHash + NullifiableNote for note types).
+        - Field layouts are correct for Grumpkin curve points (x, y coordinates).
 
-    - path: "src/ts/test/**/*.ts"
+    - path: "src/ts/**/*.ts"
       instructions: >
-        TypeScript integration tests using @aztec/aztec.js. Verify:
-        - Tests use generated artifacts from the artifacts/ directory.
+        TypeScript integration tests and utilities using @aztec/aztec.js. Verify:
+        - Tests use generated artifacts from src/artifacts/.
         - PXE setup and teardown in lifecycle hooks (beforeAll/afterAll).
-        - Wallet management uses AccountWalletWithSecretKey.
+        - Constants deployment: salt must be computed as
+          `poseidon2Hash([actualSalt, ...serializedConstants])`.
+        - Capsule storage: constants must be pushed to PXE at the correct slot.
         - Transaction execution follows `.send().wait()` pattern.
-        - Error handling tests verify revert messages.
 
     - path: "benchmarks/**/*.ts"
       instructions: >
-        Performance benchmark files. Ensure benchmark operations are realistic
-        and cover critical paths (mint, transfer, burn) for each contract type.
-
-    - path: "src/escrow_contract/**/*.nr"
-      instructions: >
-        Escrow contract with logic contract pattern. Pay special attention to:
-        - `_assert_msg_sender` validates caller matches the logic contract stored
-          in the deployment salt.
-        - `_check_escrow()` validates all contract instance properties (class_id,
-          public_keys, initialization_hash).
-        - Logic contract binding must be enforced via deployment salt.
-        - Stateless escrow design requires initialization_hash and deployer to be null.
+        Performance benchmark files using @defi-wonderland/aztec-benchmark.
+        Verify benchmark operations are realistic and compare the constants
+        pattern against traditional storage approaches.
 
     - path: "**/*.toml"
       instructions: >
         Noir project configuration. Verify:
         - Dependencies match the project Aztec version (check package.json config.aztecVersion).
-        - Workspace members in root Nargo.toml include all contract packages.
+        - Workspace members in root Nargo.toml include all contract packages
+          (counter_contract, constants_contract, schnorr_account_contract,
+          schnorr_constants_account_contract).
+        - Library packages (initializerless, constants) are NOT workspace members
+          (they are dependencies, not compiled contracts).
         - Package names follow snake_case naming conventions.
 
     - path: ".github/workflows/**"
       instructions: >
         CI/CD workflows. Ensure:
-        - Aztec version is detected dynamically from package.json config.
-        - Docker and sandbox setup steps are present for integration tests.
-        - Test commands match package.json scripts.
+        - Aztec version is detected dynamically from package.json config.aztecVersion.
+        - Docker setup is present for integration tests.
+        - Test commands match package.json scripts (test:nr, test:js).
         - Concurrency groups prevent duplicate runs.
         - Node.js version matches project requirements (>=22).
 
