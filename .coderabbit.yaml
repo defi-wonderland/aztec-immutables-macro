@@ -20,6 +20,7 @@ reviews:
     - "!target/**"
     - "!node_modules/**"
     - "!store-*/**"
+    - "!pxe-*/**"
     - "!codegenCache.json"
     - "!yarn.lock"
     - "!benchmarks/*.json"
@@ -40,18 +41,14 @@ reviews:
           contract's `salt` via poseidon2 hash.
         - `Constants::init_unconstrained(self.context)` is ONLY allowed in
           `#[external("utility")] unconstrained fn` — never in constrained context.
-        - Functions using constants without an initializer MUST have `#[noinitcheck]`
-          because the deployment nullifier won't exist.
 
 
         **Mixed usage (constants + storage):**
         - Contracts can combine `#[constants]` with `#[storage]` — they use
           different mechanisms (salt verification vs state tree).
-        - When both are used, the deployer must compute salt from both `actual_salt`
-          AND the serialized constants.
 
 
-        **Function access control (CRITICAL, Aztec v4):**
+        **Function access control (CRITICAL):**
         - Public state-mutating functions called only by the contract itself MUST
           use `#[only_self]` (NOT `#[internal]`). `#[only_self]` marks external
           functions callable only by the contract itself. `#[internal]` is for
@@ -123,7 +120,6 @@ reviews:
         - Edge cases (zero values, max values).
         - Proper use of `env.advance_block_by(1)` after private operations.
         - `#[test(should_fail_with = "...")]` for expected failures with correct messages.
-        - All test functions must be `unconstrained fn`.
 
     - path: "src/nr/**/public_key*.nr"
       instructions: >
@@ -140,7 +136,8 @@ reviews:
         - Constants deployment: salt must be computed as
           `poseidon2Hash([actualSalt, ...serializedConstants])`.
         - Capsule storage: constants must be pushed to PXE at the correct slot.
-        - Transaction execution follows `.send().wait()` pattern.
+        - Transaction execution follows `.send().wait()` pattern (note: `.wait()` is dropped in v4).
+        - Flag tests that duplicate Noir unit test coverage to avoid redundancy.
 
     - path: "benchmarks/**/*.ts"
       instructions: >
@@ -158,6 +155,13 @@ reviews:
         - Library packages (initializerless, constants) are NOT workspace members
           (they are dependencies, not compiled contracts).
         - Package names follow snake_case naming conventions.
+
+    - path: "package.json"
+      instructions: >
+        Project configuration. Verify:
+        - All @aztec/* dependency versions are aligned with each other.
+        - packageManager field is present and matches the expected Yarn version.
+        - Node.js engine requirements are specified (>=22).
 
     - path: ".github/workflows/**"
       instructions: >
