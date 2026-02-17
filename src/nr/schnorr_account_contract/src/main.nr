@@ -10,9 +10,9 @@
 //! 2. **Storage**: The key is stored as a PublicKeyNote in SinglePrivateImmutable storage
 //! 3. **Authentication**: Each auth call reads the key from private storage
 //!
-//! ## Comparison with SchnorrConstantsAccount
+//! ## Comparison with SchnorrImmutablesAccount
 //!
-//! | Feature | This Contract | SchnorrConstantsAccount |
+//! | Feature | This Contract | SchnorrImmutablesAccount |
 //! |---------|---------------|------------------------|
 //! | Storage | SinglePrivateImmutable | Capsule storage |
 //! | Initializer | Required (constructor) | Not required |
@@ -25,7 +25,7 @@ use aztec::macros::aztec;
 
 #[aztec]
 pub contract SchnorrAccount {
-    use dep::aztec::{
+    use aztec::{
         authwit::{
             account::AccountActions,
             auth::{compute_authwit_message_hash, compute_authwit_nullifier},
@@ -34,7 +34,7 @@ pub contract SchnorrAccount {
         context::PrivateContext,
         hash::compute_siloed_nullifier,
         macros::{
-            functions::{external, initializer, noinitcheck, nophasecheck, view},
+            functions::{allow_phase_change, external, initializer, noinitcheck, view},
             storage::storage,
         },
         messages::message_delivery::MessageDelivery,
@@ -86,7 +86,7 @@ pub contract SchnorrAccount {
     /// @dev If you globally change the entrypoint signature, update account_entrypoint.ts
     #[external("private")]
     #[noinitcheck]
-    #[nophasecheck]
+    #[allow_phase_change]
     fn entrypoint(app_payload: AppPayload, fee_payment_method: u8, cancellable: bool) {
         // Safety: sender for tags only used for unconstrained tagging
         unsafe { set_sender_for_tags(self.address) };

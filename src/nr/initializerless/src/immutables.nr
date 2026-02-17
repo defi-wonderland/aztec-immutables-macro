@@ -1,13 +1,13 @@
-/// # Constants Macro
+/// # Immutables Macro for Initializerless Immutables Pattern
 ///
-/// This macro auto-generates the verification and loading logic for the constants pattern,
+/// This macro auto-generates the boilerplate code for the initializerless immutables pattern,
 /// similar to how `#[storage]` works for state variables.
 ///
 /// ## Usage
 ///
 /// ```noir
-/// #[constants]
-/// pub struct Constants {
+/// #[immutables]
+/// pub struct Immutables {
 ///     pub signing_key_x: Field,
 ///     pub signing_key_y: Field,
 /// }
@@ -16,69 +16,69 @@
 /// ## What It Generates
 ///
 /// - `Serialize` and `Deserialize` implementations (if not already implemented)
-/// - `Constants::init(context: &mut PrivateContext)` - Loads and verifies constants against contract salt
-/// - `Constants::init_unconstrained(context: UtilityContext)` - Unconstrained load without verification
+/// - `Immutables::init(context: &mut PrivateContext)` - Loads and verifies immutables against contract salt
+/// - `Immutables::init_unconstrained(context: UtilityContext)` - Unconstrained load without verification
 ///
 /// ## Verification Method
 ///
 /// The capsule stores a flat array: `[actual_salt, field_0, field_1, ...]` where `field_N` are the
-/// serialized constant fields. Verification:
+/// serialized immutable fields. Verification:
 /// 1. Load capsule data from storage
 /// 2. Compute `salt = poseidon2_hash(capsule_data)`
 /// 3. Verify `salt == instance.salt`
 ///
-/// This allows contracts with initializers to use constants without conflicting with `initialization_hash`.
+/// This allows contracts with initializers to use immutables without conflicting with `initialization_hash`.
 ///
 /// ## Requirements
 ///
-/// - The struct MUST be named `Constants`
+/// - The struct MUST be named `Immutables`
 ///
 /// ## Future Improvements (for Aztec protocol)
 ///
-/// Currently, constants must be explicitly loaded in each function:
+/// Currently, immutables must be explicitly loaded in each function:
 /// ```noir
-/// let constants = Constants::init(context);
-/// let key = constants.signing_key_x;
+/// let immutables =Immutables::init(context);
+/// let key = immutables.signing_key_x;
 /// ```
 ///
 /// If integrated into aztec-packages, this could work like `#[storage]`:
-/// 1. Add a `HAS_CONSTANTS` comptime registry (similar to storage detection)
-/// 2. Modify `#[external]`/`#[internal]` function macros to check for constants
-/// 3. Auto-inject `let constants = Constants::init(context);`
-/// 4. Make available as `self.constants`
+/// 1. Add a `HAS_IMMUTABLES` comptime registry (similar to storage detection)
+/// 2. Modify `#[external]`/`#[internal]` function macros to check for immutables
+/// 3. Auto-inject `let immutables =Immutables::init(context);`
+/// 4. Make available as `self.immutables`
 ///
 /// This would enable direct access:
 /// ```noir
 /// #[external("private")]
 /// fn my_function() {
-///     let key = self.constants.signing_key_x; // No explicit load needed
+///     let key = self.immutables.signing_key_x; // No explicit load needed
 /// }
 /// ```
 
-/// The `#[constants]` macro for the constants pattern.
+/// The `#[immutables]` macro for initializerless immutables pattern.
 ///
 /// This macro:
-/// - Validates the struct is named `Constants`
+/// - Validates the struct is named `Immutables`
 /// - Derives `Serialize` and `Deserialize` if not already implemented
 /// - Generates `init(context: &mut PrivateContext)` for private/contract_library_method functions
 /// - Generates `init_unconstrained(context: UtilityContext)` for utility functions
 ///
 /// The generated `init` function (constrained):
-/// 1. Loads capsule data (actual_salt followed by serialized constants)
+/// 1. Loads capsule data (actual_salt followed by serialized immutables)
 /// 2. Computes `salt = poseidon2_hash(capsule_data)`
 /// 3. Verifies `salt` matches `instance.salt`
-/// 4. Returns deserialized constants
+/// 4. Returns deserialized immutables
 ///
 /// The generated `init_unconstrained` function (unconstrained):
-/// - Loads constants directly from capsule without verification
+/// - Loads immutables directly from capsule without verification
 /// - Use only in utility functions where verification is not possible
-pub comptime fn constants(s: TypeDefinition) -> Quoted {
+pub comptime fn immutables(s: TypeDefinition) -> Quoted {
     let struct_name = s.name();
 
     // Validate struct name
-    if struct_name != quote { Constants } {
+    if struct_name != quote { Immutables } {
         panic(
-            f"The #[constants] macro can only be applied to a struct named 'Constants', got '{struct_name}' instead.",
+            f"The #[immutables] macro can only be applied to a struct named 'Immutables', got '{struct_name}' instead.",
         )
     }
 
@@ -88,18 +88,18 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
     let serialize_impl = aztec::macros::utils::derive_serialize_if_not_implemented(s);
     let (deserialize_impl, serialized_len) = derive_deserialize_if_not_implemented(s);
 
-    // CONSTANTS_SLOT: 0x257f7fa8d0b607b4f584f2aa6480ae86716203481e2802444cf05a289cc85b3a
-    let CONSTANTS_SLOT: Field = aztec::protocol::hash::poseidon2_hash_bytes("CONSTANTS_SLOT".as_bytes());
+    // TODO: compute and document the IMMUTABLES_SLOT hash value
+    let IMMUTABLES_SLOT: Field = aztec::protocol::hash::poseidon2_hash_bytes("IMMUTABLES_SLOT".as_bytes());
 
     quote {
         $serialize_impl
         $deserialize_impl
-        impl Constants {
-            /// Loads and verifies constants from capsule storage.
+        impl Immutables {
+            /// Loads and verifies immutables from capsule storage.
             ///
             /// ## How it works
             ///
-            /// 1. **Load**: Fetches capsule data (actual_salt followed by serialized constants)
+            /// 1. **Load**: Fetches capsule data (actual_salt followed by serialized immutables)
             /// 2. **Hash**: Computes `salt = poseidon2_hash(capsule_data)`
             /// 3. **Verify**: Asserts `salt` equals `instance.salt`
             ///
@@ -109,16 +109,16 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
             ///
             /// ## Panics
             ///
-            /// - "Constants do not match contract salt" - wrong constants or actual_salt in capsule
-            /// - "Constants not found in capsule" - TypeScript didn't push constants
-            pub fn init(context: &mut aztec::context::PrivateContext) -> Constants {
+            /// - "Immutables do not match contract salt" - wrong immutables or actual_salt in capsule
+            /// - "Immutables not found in capsule" - TypeScript didn't push immutables
+            pub fn init(context: &mut aztec::context::PrivateContext) -> Immutables {
                 let address = context.this_address();
 
-                // Load capsule data: [actual_salt, serialized_constants[0], serialized_constants[1], ...]
+                // Load capsule data: [actual_salt, serialized_immutables[0], serialized_immutables[1], ...]
                 // Safety: capsule_data is verified against salt committed in contract address
                 let capsule_data: [Field; 1 + $serialized_len] = unsafe {
-                    aztec::oracle::capsules::load(address, $CONSTANTS_SLOT)
-                        .unwrap_or_else(|| panic(f"Constants not found in capsule for contract {address}"))
+                    aztec::oracle::capsules::load(address, $IMMUTABLES_SLOT)
+                        .unwrap_or_else(|| panic(f"Immutables not found in capsule for contract {address}"))
                 };
 
                 // Compute salt from entire capsule data
@@ -131,19 +131,19 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
                 assert_eq(
                     salt,
                     instance.salt,
-                    "Constants do not match contract salt",
+                    "Immutables do not match contract salt",
                 );
 
-                // Extract serialized constants (skip first element which is actual_salt)
-                let mut serialized_constants: [Field; $serialized_len] = [0; $serialized_len];
+                // Extract serialized immutables (skip first element which is actual_salt)
+                let mut serialized_immutables: [Field; $serialized_len] = [0; $serialized_len];
                 for i in 0..$serialized_len {
-                    serialized_constants[i] = capsule_data[i + 1];
+                    serialized_immutables[i] = capsule_data[i + 1];
                 }
 
-                aztec::protocol::traits::Deserialize::deserialize(serialized_constants)
+                aztec::protocol::traits::Deserialize::deserialize(serialized_immutables)
             }
 
-            /// Loads constants from capsule storage without verification.
+            /// Loads immutables from capsule storage without verification.
             ///
             /// **WARNING**: This is unconstrained and provides NO security guarantees.
             /// Use only in utility/unconstrained functions where verification is not possible.
@@ -156,21 +156,21 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
             ///
             /// ## Panics
             ///
-            /// - "Constants not found in capsule" - TypeScript didn't push constants
-            pub unconstrained fn init_unconstrained(context: aztec::context::UtilityContext) -> Constants {
+            /// - "Immutables not found in capsule" - TypeScript didn't push immutables
+            pub unconstrained fn init_unconstrained(context: aztec::context::UtilityContext) -> Immutables {
                 let address = context.this_address();
 
-                // Load capsule data: [actual_salt, serialized_constants[0], serialized_constants[1], ...]
-                let capsule_data: [Field; 1 + $serialized_len] = aztec::oracle::capsules::load(address, $CONSTANTS_SLOT)
-                    .unwrap_or_else(|| panic(f"Constants not found in capsule for contract {address}"));
+                // Load capsule data: [actual_salt, serialized_immutables[0], serialized_immutables[1], ...]
+                let capsule_data: [Field; 1 + $serialized_len] = aztec::oracle::capsules::load(address, $IMMUTABLES_SLOT)
+                    .unwrap_or_else(|| panic(f"Immutables not found in capsule for contract {address}"));
 
-                // Extract serialized constants (skip first element which is actual_salt)
-                let mut serialized_constants: [Field; $serialized_len] = [0; $serialized_len];
+                // Extract serialized immutables (skip first element which is actual_salt)
+                let mut serialized_immutables: [Field; $serialized_len] = [0; $serialized_len];
                 for i in 0..$serialized_len {
-                    serialized_constants[i] = capsule_data[i + 1];
+                    serialized_immutables[i] = capsule_data[i + 1];
                 }
 
-                aztec::protocol::traits::Deserialize::deserialize(serialized_constants)
+                aztec::protocol::traits::Deserialize::deserialize(serialized_immutables)
             }
         }
     }
@@ -179,7 +179,7 @@ pub comptime fn constants(s: TypeDefinition) -> Quoted {
 /// Generates a `Deserialize` impl for a given struct if not already implemented.
 ///
 /// Returns `(impl_code, serialized_len)` where `serialized_len` is the total field count
-/// expression (sum of each field's `Deserialize::N`). This is reused by the `constants` macro
+/// expression (sum of each field's `Deserialize::N`). This is reused by the `immutables` macro
 /// for capsule array sizing, since `Serialize::N == Deserialize::N` for the same struct.
 ///
 /// Based on `derive_deserialize` from aztec-packages:
