@@ -46,7 +46,7 @@
 //!
 //! #[external("private")]
 //! fn my_function() {
-//!     let immutables =Immutables::init(self.context);
+//!     let immutables = Immutables::init(self.context);
 //!     // Use immutables.admin_key, immutables.protocol_fee, etc.
 //! }
 //! ```

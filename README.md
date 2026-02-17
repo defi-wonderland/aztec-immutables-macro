@@ -74,7 +74,7 @@ The macro generates `Immutables::init()` for constrained contexts and `Immutable
 // In a #[external("private")] function
 #[external("private")]
 fn get_signing_public_key() -> pub (Field, Field) {
-    let immutables =Immutables::init(self.context);
+    let immutables = Immutables::init(self.context);
     let public_key = immutables.signing_public_key;
     (public_key.x, public_key.y)
 }
@@ -82,7 +82,7 @@ fn get_signing_public_key() -> pub (Field, Field) {
 // In a #[contract_library_method] function
 #[contract_library_method]
 fn is_valid_impl(context: &mut PrivateContext, outer_hash: Field) -> bool {
-    let immutables =Immutables::init(context);
+    let immutables = Immutables::init(context);
     let public_key = immutables.signing_public_key;
     // verify signature with public_key...
 }
@@ -90,7 +90,7 @@ fn is_valid_impl(context: &mut PrivateContext, outer_hash: Field) -> bool {
 // In a utility (unconstrained) function
 #[external("utility")]
 unconstrained fn lookup_validity(consumer: AztecAddress, inner_hash: Field) -> bool {
-    let immutables =Immutables::init_unconstrained(self.context);
+    let immutables = Immutables::init_unconstrained(self.context);
     let public_key = immutables.signing_public_key;
     // ...
 }
@@ -137,7 +137,7 @@ pub struct Immutables {
 
 #[contract_library_method]
 fn is_valid_impl(context: &mut PrivateContext, outer_hash: Field) -> bool {
-    let immutables =Immutables::init(context);
+    let immutables = Immutables::init(context);
     let public_key = immutables.public_key;
     // verify Schnorr signature...
 }

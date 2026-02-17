@@ -37,14 +37,14 @@
 ///
 /// Currently, immutables must be explicitly loaded in each function:
 /// ```noir
-/// let immutables =Immutables::init(context);
+/// let immutables = Immutables::init(context);
 /// let key = immutables.signing_key_x;
 /// ```
 ///
 /// If integrated into aztec-packages, this could work like `#[storage]`:
 /// 1. Add a `HAS_IMMUTABLES` comptime registry (similar to storage detection)
 /// 2. Modify `#[external]`/`#[internal]` function macros to check for immutables
-/// 3. Auto-inject `let immutables =Immutables::init(context);`
+/// 3. Auto-inject `let immutables = Immutables::init(context);`
 /// 4. Make available as `self.immutables`
 ///
 /// This would enable direct access:
