@@ -104,8 +104,13 @@ Every transaction that calls a function using `Immutables::init()` must include 
 import { Capsule } from "@aztec/stdlib/tx";
 import { Fr } from "@aztec/aztec.js/fields";
 
-// IMMUTABLES_SLOT must match the Noir macro's slot
-const IMMUTABLES_SLOT = new Fr(/* poseidon2_hash_bytes("IMMUTABLES_SLOT") */);
+/**
+ * Constants slot - must match CONSTANTS_SLOT in the #[constants] Noir macro.
+ * Computed as: poseidon2_hash_bytes("IMMUTABLES_SLOT".as_bytes())
+ */
+const IMMUTABLES_SLOT = new Fr(
+  0x1a0e563e6a2087002308173ed42dec43b9543a3684de63d6be9a958c0eaf5c45
+);
 
 const capsule = new Capsule(contractAddress, IMMUTABLES_SLOT, [
   actualSalt,

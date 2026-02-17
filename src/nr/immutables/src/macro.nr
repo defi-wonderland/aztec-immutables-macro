@@ -37,14 +37,14 @@
 ///
 /// Currently, immutables must be explicitly loaded in each function:
 /// ```noir
-/// let immutables =Immutables::init(context);
+/// let immutables = Immutables::init(context);
 /// let key = immutables.signing_key_x;
 /// ```
 ///
 /// If integrated into aztec-packages, this could work like `#[storage]`:
 /// 1. Add a `HAS_IMMUTABLES` comptime registry (similar to storage detection)
 /// 2. Modify `#[external]`/`#[internal]` function macros to check for immutables
-/// 3. Auto-inject `let immutables =Immutables::init(context);`
+/// 3. Auto-inject `let immutables = Immutables::init(context);`
 /// 4. Make available as `self.immutables`
 ///
 /// This would enable direct access:
@@ -88,7 +88,7 @@ pub comptime fn immutables(s: TypeDefinition) -> Quoted {
     let serialize_impl = aztec::macros::utils::derive_serialize_if_not_implemented(s);
     let (deserialize_impl, serialized_len) = derive_deserialize_if_not_implemented(s);
 
-    // TODO: compute and document the IMMUTABLES_SLOT hash value
+    // IMMUTABLES_SLOT: 0x1a0e563e6a2087002308173ed42dec43b9543a3684de63d6be9a958c0eaf5c45
     let IMMUTABLES_SLOT: Field = aztec::protocol::hash::poseidon2_hash_bytes("IMMUTABLES_SLOT".as_bytes());
 
     quote {

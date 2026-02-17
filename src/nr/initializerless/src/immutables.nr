@@ -88,7 +88,7 @@ pub comptime fn immutables(s: TypeDefinition) -> Quoted {
     let serialize_impl = aztec::macros::utils::derive_serialize_if_not_implemented(s);
     let (deserialize_impl, serialized_len) = derive_deserialize_if_not_implemented(s);
 
-    // TODO: compute and document the IMMUTABLES_SLOT hash value
+    // IMMUTABLES_SLOT: 0x1a0e563e6a2087002308173ed42dec43b9543a3684de63d6be9a958c0eaf5c45
     let IMMUTABLES_SLOT: Field = aztec::protocol::hash::poseidon2_hash_bytes("IMMUTABLES_SLOT".as_bytes());
 
     quote {
