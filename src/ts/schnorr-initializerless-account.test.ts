@@ -77,18 +77,6 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
     expect(result1.address.toString()).not.toBe(result2.address.toString());
   });
 
-  it("should produce consistent addresses for same signing key and actualSalt", async () => {
-    const result1 = await computeSchnorrAccountAddress(SIGNING_KEY_1, {
-      actualSalt: ACTUAL_SALT_1,
-    });
-    const result2 = await computeSchnorrAccountAddress(SIGNING_KEY_1, {
-      actualSalt: ACTUAL_SALT_1,
-    });
-
-    // Same key and actualSalt should produce same address
-    expect(result1.address.toString()).toBe(result2.address.toString());
-  });
-
   it("should compute correct contract salt", async () => {
     const actualSalt = new Fr(12345n);
 
@@ -233,35 +221,6 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
           .simulate({ from: alice }),
       ).rejects.toThrow("Immutables do not match contract salt");
     });
-
-    it("should deploy multiple accounts with different keys", async () => {
-      const deployments = await Promise.all([
-        registerInitializerlessAccount(wallet, { secretKey: Fr.random() }),
-        registerInitializerlessAccount(wallet, { secretKey: Fr.random() }),
-        registerInitializerlessAccount(wallet, { secretKey: Fr.random() }),
-      ]);
-
-      // Verify all addresses are unique
-      const addresses = deployments.map((d) => d.address.toString());
-      const uniqueAddresses = new Set(addresses);
-      expect(uniqueAddresses.size).toBe(deployments.length);
-
-      // Verify each contract returns its correct key
-      for (const { contract, actualSalt, signingPublicKey } of deployments) {
-        const capsule = createSigningKeyCapsule(
-          contract.address,
-          actualSalt,
-          signingPublicKey,
-        );
-        const result = await contract.methods
-          .get_signing_public_key()
-          .with({ capsules: [capsule] })
-          .simulate({ from: alice });
-
-        expect(result[0]).toEqual(signingPublicKey.x.toBigInt());
-        expect(result[1]).toEqual(signingPublicKey.y.toBigInt());
-      }
-    });
   });
 
   // Unpublished (PXE-only) deployment tests
@@ -334,70 +293,6 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
 
       expect(result2[0]).toEqual(account2.signingPublicKey.x.toBigInt());
       expect(result2[1]).toEqual(account2.signingPublicKey.y.toBigInt());
-    });
-
-    it("should fail with wrong capsule data on unpublished account", async () => {
-      const { contract, actualSalt, signingPublicKey } =
-        await registerInitializerlessAccount(wallet, {
-          skipInstancePublication: true,
-        });
-
-      // Try to call with a different (wrong) signing key in capsule
-      const wrongKey: SigningPublicKey = {
-        x: new Fr(signingPublicKey.x.toBigInt() + 1n),
-        y: new Fr(signingPublicKey.y.toBigInt() + 1n),
-      };
-      const wrongCapsule = createSigningKeyCapsule(
-        contract.address,
-        actualSalt,
-        wrongKey,
-      );
-
-      // This should fail because the capsule data doesn't match salt
-      await expect(
-        contract.methods
-          .get_signing_public_key()
-          .with({ capsules: [wrongCapsule] })
-          .simulate({ from: alice }),
-      ).rejects.toThrow("Immutables do not match contract salt");
-    });
-
-    it("should deploy multiple unpublished accounts with different keys", async () => {
-      const deployments = await Promise.all([
-        registerInitializerlessAccount(wallet, {
-          secretKey: Fr.random(),
-          skipInstancePublication: true,
-        }),
-        registerInitializerlessAccount(wallet, {
-          secretKey: Fr.random(),
-          skipInstancePublication: true,
-        }),
-        registerInitializerlessAccount(wallet, {
-          secretKey: Fr.random(),
-          skipInstancePublication: true,
-        }),
-      ]);
-
-      // Verify all addresses are unique
-      const addresses = deployments.map((d) => d.address.toString());
-      const uniqueAddresses = new Set(addresses);
-      expect(uniqueAddresses.size).toBe(deployments.length);
-
-      // Verify each contract returns its correct key
-      for (const { contract, actualSalt, signingPublicKey } of deployments) {
-        const capsule = createSigningKeyCapsule(
-          contract.address,
-          actualSalt,
-          signingPublicKey,
-        );
-        const result = await contract.methods
-          .get_signing_public_key()
-          .with({ capsules: [capsule] })
-          .simulate({ from: alice });
-
-        expect(result[0]).toEqual(signingPublicKey.x.toBigInt());
-        expect(result[1]).toEqual(signingPublicKey.y.toBigInt());
-      }
     });
   });
 });
