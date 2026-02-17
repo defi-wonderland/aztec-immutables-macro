@@ -105,7 +105,7 @@ import { Capsule } from "@aztec/stdlib/tx";
 import { Fr } from "@aztec/aztec.js/fields";
 
 /**
- * Constants slot - must match CONSTANTS_SLOT in the #[constants] Noir macro.
+ * Immutables slot - must match IMMUTABLES_SLOT in the #[immutables] Noir macro.
  * Computed as: poseidon2_hash_bytes("IMMUTABLES_SLOT".as_bytes())
  */
 const IMMUTABLES_SLOT = new Fr(
@@ -123,9 +123,50 @@ await contract.methods
   .send({ from: caller });
 ```
 
+This repo also provides TypeScript helper utilities in `src/ts/immutables/utils.ts` that handle salt computation, capsule creation, and deployment:
+
+```typescript
+import {
+  computeContractSalt,
+  createImmutablesCapsule,
+  deployWithImmutables,
+} from "./immutables/utils.js";
+
+// Deploy any contract with immutables (handles salt, PXE registration, and publication)
+const result = await deployWithImmutables(wallet, MyContractArtifact, [field1, field2]);
+
+// Create capsule for subsequent function calls
+const capsule = createImmutablesCapsule(result.instance.address, result.actualSalt, [field1, field2]);
+```
+
+### Published vs unpublished deployment
+
+Contracts deployed with the immutables pattern can be either **published** (on-chain) or **unpublished** (PXE-only):
+
+- **Published** (default): The contract instance is registered on-chain. Other parties can discover and interact with the contract.
+- **Unpublished** (`skipInstancePublication: true`): The contract is only registered in the local PXE. Private execution still works because it's validated locally — the contract never needs to be visible on-chain. This is useful for account contracts that only use private functions.
+
+```typescript
+// Published deployment (default)
+const result = await deployWithImmutables(wallet, artifact, serializedImmutables);
+
+// Unpublished deployment (PXE-only)
+const result = await deployWithImmutables(wallet, artifact, serializedImmutables, {
+  skipInstancePublication: true,
+});
+```
+
 ### Compatibility with storage
 
 The immutables pattern is compatible with `#[storage]`. Both can coexist in the same contract — immutables are verified against `salt`, while storage is managed via the state tree. See `src/nr/immutables_contract` for an example of mixed usage.
+
+### No `#[noinitcheck]` needed
+
+With the standard initializer pattern, any function that might be called before initialization requires the `#[noinitcheck]` attribute to bypass the initialization check — otherwise the contract rejects calls until `constructor()` has been executed. This means you need to carefully annotate functions like `entrypoint` and `verify_private_authwit`.
+
+With the immutables pattern, there is no initializer at all (`initializationHash` is zero), so the contract never expects initialization. Functions can be called immediately after deployment without any `#[noinitcheck]` annotations.
+
+However, if your contract uses **both** immutables and a standard initializer (mixed usage), you still need `#[noinitcheck]` on functions that may be called before the initializer runs.
 
 ## Reference Implementation: Initializerless Schnorr Account
 
@@ -155,19 +196,25 @@ A standard `schnorr_account_contract` using the traditional initializer pattern 
 ## Project Structure
 
 ```
-src/nr/
-├── immutables/               # The #[immutables] macro library
-│   └── src/macro.nr
-├── schnorr_initializerless_account_contract/  # Initializerless Schnorr account
-│   └── src/
-│       ├── main.nr
-│       └── public_key.nr
-├── schnorr_account_contract/                  # Standard Schnorr account (for comparison)
-│   └── src/
-│       ├── main.nr
-│       └── public_key_note.nr
-└── immutables_contract/                       # Example: immutables + storage coexistence
-    └── src/main.nr
+src/
+├── nr/
+│   ├── immutables/                              # The #[immutables] macro library
+│   │   └── src/macro.nr
+│   ├── schnorr_initializerless_account_contract/  # Initializerless Schnorr account
+│   │   └── src/
+│   │       ├── main.nr
+│   │       └── public_key.nr
+│   ├── schnorr_account_contract/                  # Standard Schnorr account (for comparison)
+│   │   └── src/
+│   │       ├── main.nr
+│   │       └── public_key_note.nr
+│   └── immutables_contract/                       # Example: immutables + storage coexistence
+│       └── src/main.nr
+└── ts/
+    ├── immutables/                    # Generic TS utilities (salt, capsule, deploy)
+    ├── immutables-contract/           # Typed wrapper for ImmutablesContract
+    ├── schnorr-initializerless-account/  # Account contract TS integration
+    └── schnorr-account/               # Standard account utilities (for comparison)
 ```
 
 ## Development
