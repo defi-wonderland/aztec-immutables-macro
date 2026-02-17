@@ -1,20 +1,20 @@
 /**
- * SchnorrConstantsAccount Test Utilities
+ * SchnorrInitializerlessAccount Test Utilities
  *
- * Provides test infrastructure for deploying SchnorrConstantsAccount and
+ * Provides test infrastructure for deploying SchnorrInitializerlessAccount and
  * integrating it with TestWallet so it can sign transactions in tests.
  *
  * This is NOT production code — it uses TestWallet-specific workarounds.
  *
  * ## The Challenge
  *
- * The standard AccountManager flow computes salt randomly, but SchnorrConstantsAccount
+ * The standard AccountManager flow computes salt randomly, but SchnorrInitializerlessAccount
  * uses a derived salt that commits to the signing key:
  * - Standard: random salt
- * - Constants: salt = hash([actual_salt, public_key.x, public_key.y])
+ * - Immutables: salt = hash([actual_salt, public_key.x, public_key.y])
  *
  * This module provides a custom deployment path that:
- * 1. Computes the correct salt for the constants pattern
+ * 1. Computes the correct salt for the immutables pattern
  * 2. Deploys the contract with this derived salt
  * 3. Creates the Account object for signing
  * 4. Registers everything with the wallet
@@ -29,25 +29,25 @@ import { deriveKeys, deriveSigningKey } from "@aztec/stdlib/keys";
 import { CompleteAddress } from "@aztec/stdlib/contract";
 
 import {
-  SchnorrConstantsAccountContract,
-  SchnorrConstantsAccountContractArtifact,
-} from "../../artifacts/SchnorrConstantsAccount.js";
+  SchnorrInitializerlessAccountContract,
+  SchnorrInitializerlessAccountContractArtifact,
+} from "../../artifacts/SchnorrInitializerlessAccount.js";
 import {
-  SchnorrConstantsAccountContract as SchnorrConstantsAccountContractClass,
+  SchnorrInitializerlessAccountContract as SchnorrInitializerlessAccountContractClass,
   serializeSigningKey,
   createSigningKeyCapsule,
   type SigningPublicKey,
 } from "./index.js";
-import { deployWithConstants } from "../initializerless/utils.js";
-import type { DeployWithConstantsOptions } from "../initializerless/utils.js";
+import { deployWithImmutables } from "../immutables/utils.js";
+import type { DeployWithImmutablesOptions } from "../immutables/utils.js";
 
-export { CONSTANTS_SLOT } from "../initializerless/utils.js";
+export { IMMUTABLES_SLOT } from "../immutables/utils.js";
 
 /**
- * Result of deploying a SchnorrConstantsAccount for wallet integration
+ * Result of deploying a SchnorrInitializerlessAccount for wallet integration
  */
-export interface DeployedSchnorrConstantsAccount {
-  contract: SchnorrConstantsAccountContract;
+export interface DeployedSchnorrInitializerlessAccount {
+  contract: SchnorrInitializerlessAccountContract;
   address: AztecAddress;
   secretKey: Fr;
   signingPrivateKey: GrumpkinScalar;
@@ -60,7 +60,7 @@ export interface DeployedSchnorrConstantsAccount {
 }
 
 /**
- * Deploys SchnorrConstantsAccount and registers it with TestWallet for signing.
+ * Deploys SchnorrInitializerlessAccount and registers it with TestWallet for signing.
  *
  * This function handles the full lifecycle:
  * 1. Derives signing keys from secret
@@ -73,7 +73,7 @@ export interface DeployedSchnorrConstantsAccount {
  *
  * ## Publication vs PXE-Only Registration
  *
- * By default, the contract is published on-chain. However, since SchnorrConstantsAccount
+ * By default, the contract is published on-chain. However, since SchnorrInitializerlessAccount
  * has only private functions, it can work without publication:
  * - `skipInstancePublication: true` - Contract only registered in PXE, not on-chain
  * - Private execution still works (validated locally)
@@ -83,7 +83,7 @@ export interface DeployedSchnorrConstantsAccount {
  * @param options - Optional deployment configuration
  * @returns The deployed account details including actualSalt for capsule creation
  */
-export async function registerConstantsAccount(
+export async function registerInitializerlessAccount(
   wallet: TestWallet,
   options?: {
     secretKey?: Fr;
@@ -93,7 +93,7 @@ export async function registerConstantsAccount(
     /** Skip publishing the contract instance on-chain. Private execution still works. */
     skipInstancePublication?: boolean;
   },
-): Promise<DeployedSchnorrConstantsAccount> {
+): Promise<DeployedSchnorrInitializerlessAccount> {
   const secretKey = options?.secretKey ?? Fr.random();
 
   // Derive signing private key from secret
@@ -110,8 +110,8 @@ export async function registerConstantsAccount(
   // Derive public keys for the contract instance
   const { publicKeys } = await deriveKeys(secretKey);
 
-  // Use the generic deployWithConstants for instance creation, registration, and publication
-  const deployOpts: DeployWithConstantsOptions = {
+  // Use the generic deployWithImmutables for instance creation, registration, and publication
+  const deployOpts: DeployWithImmutablesOptions = {
     actualSalt: options?.actualSalt,
     publicKeys,
     secretKey,
@@ -119,9 +119,9 @@ export async function registerConstantsAccount(
     skipInstancePublication: options?.skipInstancePublication,
   };
 
-  const deployResult = await deployWithConstants(
+  const deployResult = await deployWithImmutables(
     wallet,
-    SchnorrConstantsAccountContractArtifact,
+    SchnorrInitializerlessAccountContractArtifact,
     serializeSigningKey(signingPublicKey),
     deployOpts,
   );
@@ -130,7 +130,7 @@ export async function registerConstantsAccount(
   const address = instanceWithAddress.address;
 
   // Create AccountContract and Account for signing
-  const accountContract = new SchnorrConstantsAccountContractClass(
+  const accountContract = new SchnorrInitializerlessAccountContractClass(
     signingPrivateKey,
     signingPublicKey,
   );
@@ -158,7 +158,7 @@ export async function registerConstantsAccount(
   }
 
   // Get the contract instance
-  const contract = SchnorrConstantsAccountContract.at(address, wallet);
+  const contract = SchnorrInitializerlessAccountContract.at(address, wallet);
 
   return {
     contract,

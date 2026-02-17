@@ -4,20 +4,20 @@ import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { Fr } from "@aztec/aztec.js/fields";
 import { type AztecLMDBStoreV2 } from "@aztec/kv-store/lmdb-v2";
 import {
-  deployConstantsContract,
+  deployImmutablesContract,
   deployMixedUsageContract,
-  createConstantsCapsule,
-  serializeConstants,
-  type Constants,
+  createImmutablesCapsule,
+  serializeImmutables,
+  type Immutables,
   computeContractSalt,
-} from "./constants-contract/utils.js";
+} from "./immutables-contract/utils.js";
 import { setupTestSuite } from "./utils.js";
 
-const CONSTANTS_1: Constants = {
+const IMMUTABLES_1: Immutables = {
   signingKeyX: new Fr(111n),
   signingKeyY: new Fr(222n),
 };
-const CONSTANTS_2: Constants = {
+const IMMUTABLES_2: Immutables = {
   signingKeyX: new Fr(333n),
   signingKeyY: new Fr(444n),
 };
@@ -25,7 +25,7 @@ const ACTUAL_SALT_1 = new Fr(12345n);
 const ACTUAL_SALT_2 = new Fr(54321n);
 const INITIAL_COUNTER = 42n;
 
-describe("Constants Contract - Initializerless Pattern", () => {
+describe("Immutables Contract - Initializerless Pattern", () => {
   let store: AztecLMDBStoreV2;
   let wallet: TestWallet;
   let alice: AztecAddress;
@@ -35,7 +35,7 @@ describe("Constants Contract - Initializerless Pattern", () => {
       store,
       wallet,
       accounts: [alice],
-    } = await setupTestSuite("constants"));
+    } = await setupTestSuite("immutables"));
   });
 
   afterAll(async () => {
@@ -44,15 +44,15 @@ describe("Constants Contract - Initializerless Pattern", () => {
 
   // Pure computation tests (no deployment, no published/unpublished distinction)
   it("should produce different addresses for different actualSalt", async () => {
-    // Deploy two contracts with same constants but different actualSalt
-    const { contract: contract1 } = await deployConstantsContract(
+    // Deploy two contracts with same immutables but different actualSalt
+    const { contract: contract1 } = await deployImmutablesContract(
       wallet,
-      CONSTANTS_1,
+      IMMUTABLES_1,
       { actualSalt: ACTUAL_SALT_1 },
     );
-    const { contract: contract2 } = await deployConstantsContract(
+    const { contract: contract2 } = await deployImmutablesContract(
       wallet,
-      CONSTANTS_1,
+      IMMUTABLES_1,
       { actualSalt: ACTUAL_SALT_2, skipClassPublication: true },
     );
 
@@ -64,7 +64,7 @@ describe("Constants Contract - Initializerless Pattern", () => {
     const actualSalt = new Fr(12345n);
     const salt = computeContractSalt(
       ACTUAL_SALT_1,
-      serializeConstants(CONSTANTS_1),
+      serializeImmutables(IMMUTABLES_1),
     );
 
     // Salt should be non-zero
@@ -73,30 +73,30 @@ describe("Constants Contract - Initializerless Pattern", () => {
     // Same inputs should produce same salt
     const salt2 = computeContractSalt(
       ACTUAL_SALT_1,
-      serializeConstants(CONSTANTS_1),
+      serializeImmutables(IMMUTABLES_1),
     );
     expect(salt.toBigInt()).toBe(salt2.toBigInt());
 
-    // Different constants should produce different salt
+    // Different immutables should produce different salt
     const differentSalt = computeContractSalt(
       ACTUAL_SALT_1,
-      serializeConstants(CONSTANTS_2),
+      serializeImmutables(IMMUTABLES_2),
     );
     expect(salt.toBigInt()).not.toBe(differentSalt.toBigInt());
 
     // Different actualSalt should produce different salt
     const saltWithDifferentActual = computeContractSalt(
       ACTUAL_SALT_2,
-      serializeConstants(CONSTANTS_1),
+      serializeImmutables(IMMUTABLES_1),
     );
     expect(salt.toBigInt()).not.toBe(saltWithDifferentActual.toBigInt());
   });
 
   // Published deployment tests
   describe("Published", () => {
-    it("should deploy contract with constants and read them back", async () => {
+    it("should deploy contract with immutables and read them back", async () => {
       const { contract, actualSalt, isPublished } =
-        await deployConstantsContract(wallet, CONSTANTS_1);
+        await deployImmutablesContract(wallet, IMMUTABLES_1);
 
       expect(isPublished).toBe(true);
       expect(contract.address).toBeDefined();
@@ -104,10 +104,10 @@ describe("Constants Contract - Initializerless Pattern", () => {
         AztecAddress.ZERO.toString(),
       );
 
-      const capsule = createConstantsCapsule(
+      const capsule = createImmutablesCapsule(
         contract.address,
         actualSalt,
-        serializeConstants(CONSTANTS_1),
+        serializeImmutables(IMMUTABLES_1),
       );
 
       const result = await contract.methods
@@ -117,16 +117,16 @@ describe("Constants Contract - Initializerless Pattern", () => {
           from: alice,
         });
 
-      expect(result[0]).toEqual(CONSTANTS_1.signingKeyX.toBigInt());
-      expect(result[1]).toEqual(CONSTANTS_1.signingKeyY.toBigInt());
+      expect(result[0]).toEqual(IMMUTABLES_1.signingKeyX.toBigInt());
+      expect(result[1]).toEqual(IMMUTABLES_1.signingKeyY.toBigInt());
     });
   });
 
   // Unpublished (PXE-only) deployment tests
   describe("Unpublished (PXE-only)", () => {
-    it("should deploy unpublished contract and read constants back", async () => {
+    it("should deploy unpublished contract and read immutables back", async () => {
       const { contract, actualSalt, isPublished } =
-        await deployConstantsContract(wallet, CONSTANTS_1, {
+        await deployImmutablesContract(wallet, IMMUTABLES_1, {
           skipInstancePublication: true,
         });
 
@@ -136,10 +136,10 @@ describe("Constants Contract - Initializerless Pattern", () => {
         AztecAddress.ZERO.toString(),
       );
 
-      const capsule = createConstantsCapsule(
+      const capsule = createImmutablesCapsule(
         contract.address,
         actualSalt,
-        serializeConstants(CONSTANTS_1),
+        serializeImmutables(IMMUTABLES_1),
       );
 
       const result = await contract.methods
@@ -149,13 +149,13 @@ describe("Constants Contract - Initializerless Pattern", () => {
           from: alice,
         });
 
-      expect(result[0]).toEqual(CONSTANTS_1.signingKeyX.toBigInt());
-      expect(result[1]).toEqual(CONSTANTS_1.signingKeyY.toBigInt());
+      expect(result[0]).toEqual(IMMUTABLES_1.signingKeyX.toBigInt());
+      expect(result[1]).toEqual(IMMUTABLES_1.signingKeyY.toBigInt());
     });
   });
 });
 
-describe("Constants Contract - Mixed Usage (Constants + Storage)", () => {
+describe("Immutables Contract - Mixed Usage (Immutables + Storage)", () => {
   let store: AztecLMDBStoreV2;
   let wallet: TestWallet;
   let alice: AztecAddress;
@@ -176,7 +176,7 @@ describe("Constants Contract - Mixed Usage (Constants + Storage)", () => {
     // Deploy using standard initializer pattern
     const { contract } = await deployMixedUsageContract(
       wallet,
-      CONSTANTS_1,
+      IMMUTABLES_1,
       INITIAL_COUNTER,
     );
 
@@ -194,7 +194,7 @@ describe("Constants Contract - Mixed Usage (Constants + Storage)", () => {
   it("should allow storage mutation via increment", async () => {
     const { contract } = await deployMixedUsageContract(
       wallet,
-      CONSTANTS_1,
+      IMMUTABLES_1,
       INITIAL_COUNTER,
     );
 
@@ -208,13 +208,13 @@ describe("Constants Contract - Mixed Usage (Constants + Storage)", () => {
     expect(counter).toEqual(INITIAL_COUNTER + 1n);
   });
 
-  it("should fail constants verification in mixed usage (expected behavior)", async () => {
+  it("should fail immutables verification in mixed usage (expected behavior)", async () => {
     // This test documents that in mixed usage with standard deployment,
-    // constants verification will fail because the contract's salt is
-    // computed from deployer-chosen values, not including the constants.
+    // immutables verification will fail because the contract's salt is
+    // computed from deployer-chosen values, not including the immutables.
     const { contract, actualSalt } = await deployMixedUsageContract(
       wallet,
-      CONSTANTS_1,
+      IMMUTABLES_1,
       INITIAL_COUNTER,
     );
 
@@ -225,50 +225,50 @@ describe("Constants Contract - Mixed Usage (Constants + Storage)", () => {
     expect(counter).toEqual(INITIAL_COUNTER);
 
     // Create capsule for the call
-    const capsule = createConstantsCapsule(
+    const capsule = createImmutablesCapsule(
       contract.address,
       actualSalt,
-      serializeConstants(CONSTANTS_1),
+      serializeImmutables(IMMUTABLES_1),
     );
 
-    // But constants verification fails because:
+    // But immutables verification fails because:
     // - The standard deploy method computes salt from deployer-chosen values
-    // - Constants::init computes poseidon2_hash([actualSalt, 555, 666])
+    // - Immutables::init computes poseidon2_hash([actualSalt, 555, 666])
     // - These don't match the instance.salt
     await expect(
       contract.methods
         .get_signing_key()
         .with({ capsules: [capsule] })
         .simulate({ from: alice }),
-    ).rejects.toThrow("Constants do not match contract salt");
+    ).rejects.toThrow("Immutables do not match contract salt");
   });
 
-  it("should fail verify_constants_and_increment due to salt mismatch (expected behavior)", async () => {
+  it("should fail verify_immutables_and_increment due to salt mismatch (expected behavior)", async () => {
     // This tests the combined private+public function that:
-    // 1. Verifies constants in private context
+    // 1. Verifies immutables in private context
     // 2. Enqueues a public call to increment storage
-    // Due to mixed usage, the constants verification step fails.
+    // Due to mixed usage, the immutables verification step fails.
     const { contract, actualSalt } = await deployMixedUsageContract(
       wallet,
-      CONSTANTS_1,
+      IMMUTABLES_1,
       INITIAL_COUNTER,
     );
 
     // Create capsule for the call
-    const capsule = createConstantsCapsule(
+    const capsule = createImmutablesCapsule(
       contract.address,
       actualSalt,
-      serializeConstants(CONSTANTS_1),
+      serializeImmutables(IMMUTABLES_1),
     );
 
-    // The private function fails at Constants::init
-    // because salt doesn't include constants
+    // The private function fails at Immutables::init
+    // because salt doesn't include immutables
     await expect(
       contract.methods
-        .verify_constants_and_increment()
+        .verify_immutables_and_increment()
         .with({ capsules: [capsule] })
         .simulate({ from: alice }),
-    ).rejects.toThrow("Constants do not match contract salt");
+    ).rejects.toThrow("Immutables do not match contract salt");
 
     // Storage should remain unchanged since the call failed
     const counter = await contract.methods.get_counter().simulate({

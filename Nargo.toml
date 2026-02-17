@@ -3,7 +3,7 @@ members = [
     "src/nr/counter_contract",
     "src/nr/immutables_contract",
     "src/nr/schnorr_account_contract",
-    "src/nr/schnorr_immutables_account_contract",
+    "src/nr/schnorr_initializerless_account_contract",
 ]
 
 [benchmark]

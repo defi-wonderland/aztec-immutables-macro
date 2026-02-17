@@ -1,14 +1,15 @@
 /**
- * SchnorrConstantsAccount - Library module
+ * SchnorrInitializerlessAccount - Library module
  *
- * Provides everything needed to work with SchnorrConstantsAccount contracts:
+ * Provides everything needed to work with SchnorrInitializerlessAccount contracts:
+ * - Initializerless account contract using the #[immutables] macro
  * - AccountContract implementation for wallet integration
  * - AuthWitnessProvider for transaction signing
- * - Typed wrappers over generic initializerless constants utilities
+ * - Typed wrappers over generic initializerless immutables utilities
  *
  * ## Key Differences from Standard SchnorrAccountContract:
  *
- * | Feature | Standard | Constants Pattern |
+ * | Feature | Standard | Initializerless Pattern |
  * |---------|----------|-------------------|
  * | Initializer | constructor() stores key | None |
  * | Key Storage | SinglePrivateImmutable | Capsule storage |
@@ -39,12 +40,12 @@ import { AuthWitness } from "@aztec/stdlib/auth-witness";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { Capsule } from "@aztec/stdlib/tx";
 
-import { SchnorrConstantsAccountContractArtifact } from "../../artifacts/SchnorrConstantsAccount.js";
-import * as generic from "../initializerless/utils.js";
-import type { ConstantsInstanceOptions } from "../initializerless/utils.js";
+import { SchnorrInitializerlessAccountContractArtifact } from "../../artifacts/SchnorrInitializerlessAccount.js";
+import * as generic from "../immutables/utils.js";
+import type { ImmutablesInstanceOptions } from "../immutables/utils.js";
 
-// Re-export CONSTANTS_SLOT from generic
-export { CONSTANTS_SLOT } from "../initializerless/utils.js";
+// Re-export IMMUTABLES_SLOT from generic
+export { IMMUTABLES_SLOT } from "../immutables/utils.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -109,7 +110,7 @@ export function createSigningKeyCapsule(
   actualSalt: Fr,
   key: SigningPublicKey,
 ): Capsule {
-  return generic.createConstantsCapsule(
+  return generic.createImmutablesCapsule(
     contractAddress,
     actualSalt,
     serializeSigningKey(key),
@@ -127,10 +128,10 @@ export function createSigningKeyCapsule(
  */
 export async function computeSchnorrAccountAddress(
   signingKey: SigningPublicKey,
-  options?: ConstantsInstanceOptions,
+  options?: ImmutablesInstanceOptions,
 ): Promise<ComputeSchnorrAccountAddressResult> {
-  return generic.computeConstantsAddress(
-    SchnorrConstantsAccountContractArtifact,
+  return generic.computeImmutablesAddress(
+    SchnorrInitializerlessAccountContractArtifact,
     serializeSigningKey(signingKey),
     options,
   );
@@ -141,19 +142,19 @@ export async function computeSchnorrAccountAddress(
 // ---------------------------------------------------------------------------
 
 /**
- * AccountContract implementation for SchnorrConstantsAccount.
+ * AccountContract implementation for SchnorrInitializerlessAccount.
  *
- * This class enables the initializerless constants account to work with
+ * This class enables the initializerless immutables account to work with
  * the Aztec wallet system for transaction signing.
  */
-export class SchnorrConstantsAccountContract implements AccountContract {
+export class SchnorrInitializerlessAccountContract implements AccountContract {
   constructor(
     private signingPrivateKey: GrumpkinScalar,
     private signingPublicKey: SigningPublicKey,
   ) {}
 
   /**
-   * Returns undefined since SchnorrConstantsAccount has no initializer.
+   * Returns undefined since SchnorrInitializerlessAccount has no initializer.
    *
    * The contract's salt is computed from the signing key and passed
    * to the contract instance creation. initializationHash is set to zero.
@@ -163,10 +164,10 @@ export class SchnorrConstantsAccountContract implements AccountContract {
   }
 
   /**
-   * Returns the SchnorrConstantsAccount contract artifact.
+   * Returns the SchnorrInitializerlessAccount contract artifact.
    */
   async getContractArtifact(): Promise<ContractArtifact> {
-    return SchnorrConstantsAccountContractArtifact;
+    return SchnorrInitializerlessAccountContractArtifact;
   }
 
   /**
@@ -177,7 +178,9 @@ export class SchnorrConstantsAccountContract implements AccountContract {
    * the signature (capsule vs SinglePrivateImmutable storage).
    */
   getAuthWitnessProvider(_address: CompleteAddress): AuthWitnessProvider {
-    return new SchnorrConstantsAuthWitnessProvider(this.signingPrivateKey);
+    return new SchnorrInitializerlessAuthWitnessProvider(
+      this.signingPrivateKey,
+    );
   }
 
   /**
@@ -208,12 +211,12 @@ export class SchnorrConstantsAccountContract implements AccountContract {
 // ---------------------------------------------------------------------------
 
 /**
- * AuthWitnessProvider for SchnorrConstantsAccount.
+ * AuthWitnessProvider for SchnorrInitializerlessAccount.
  *
  * Creates Schnorr signatures for transaction authorization.
  * Identical to the standard SchnorrAuthWitnessProvider.
  */
-export class SchnorrConstantsAuthWitnessProvider implements AuthWitnessProvider {
+export class SchnorrInitializerlessAuthWitnessProvider implements AuthWitnessProvider {
   constructor(private signingPrivateKey: GrumpkinScalar) {}
 
   async createAuthWit(messageHash: Fr): Promise<AuthWitness> {
@@ -231,7 +234,7 @@ export class SchnorrConstantsAuthWitnessProvider implements AuthWitnessProvider 
 // ---------------------------------------------------------------------------
 
 /**
- * Creates a SchnorrConstantsAccountContract from a secret key.
+ * Creates a SchnorrInitializerlessAccountContract from a secret key.
  *
  * This derives the signing key pair from the secret and creates
  * an account contract ready for deployment.
@@ -239,10 +242,10 @@ export class SchnorrConstantsAuthWitnessProvider implements AuthWitnessProvider 
  * @param secretKey - The secret key to derive signing keys from
  * @returns The account contract with derived signing keys
  */
-export async function createSchnorrConstantsAccountContract(
+export async function createSchnorrInitializerlessAccountContract(
   secretKey: Fr,
 ): Promise<{
-  contract: SchnorrConstantsAccountContract;
+  contract: SchnorrInitializerlessAccountContract;
   signingPrivateKey: GrumpkinScalar;
   signingPublicKey: SigningPublicKey;
 }> {
@@ -261,7 +264,7 @@ export async function createSchnorrConstantsAccountContract(
     ),
   };
 
-  const contract = new SchnorrConstantsAccountContract(
+  const contract = new SchnorrInitializerlessAccountContract(
     signingPrivateKey,
     signingPublicKey,
   );

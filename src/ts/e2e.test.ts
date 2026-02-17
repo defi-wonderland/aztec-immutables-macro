@@ -1,8 +1,8 @@
 /**
  * E2E Test: Initializerless Account with Dripper FPC
  *
- * This test validates the initializerless constants pattern by demonstrating
- * that a SchnorrConstantsAccount (no initializer, key committed in address)
+ * This test validates the initializerless immutables pattern by demonstrating
+ * that a SchnorrInitializerlessAccount (no initializer, key committed in address)
  * can successfully receive private token transfers via the Dripper faucet.
  *
  * ## Problem Being Solved
@@ -14,7 +14,7 @@
  *
  * ## Solution
  *
- * The initializerless constants pattern:
+ * The initializerless immutables pattern:
  * - No initialization method required
  * - Key is committed to the contract address via salt
  * - No on-chain tx required to "initialize" the account
@@ -24,7 +24,7 @@
  *
  * 1. Deploy Dripper contract (faucet)
  * 2. Deploy Token contract with Dripper as minter
- * 3. Deploy SchnorrConstantsAccount (initializerless)
+ * 3. Deploy SchnorrInitializerlessAccount
  * 4. Deploy standard SchnorrAccount for comparison
  * 5. Use drip_to_private from both accounts
  * 6. Verify both accounts received tokens
@@ -60,9 +60,9 @@ async function registerDeployedSponsoredFPCInWalletAndGetAddress(
 }
 
 import {
-  registerConstantsAccount,
+  registerInitializerlessAccount,
   createSigningKeyCapsule,
-} from "./schnorr-constants-account/utils.js";
+} from "./schnorr-initializerless-account/utils.js";
 import { deploySchnorrAccount } from "./schnorr-account/utils.js";
 
 // Import Token and Dripper from aztec-standards
@@ -120,27 +120,30 @@ describe("Initializerless Account with Dripper FPC", () => {
   });
 
   it("should drip to private balance of initializerless account", async () => {
-    // Deploy SchnorrConstantsAccount (initializerless pattern)
-    const constantsAccount = await registerConstantsAccount(wallet, {
-      secretKey: Fr.random(),
-    });
+    // Deploy SchnorrInitializerlessAccount
+    const initializerlessAccount = await registerInitializerlessAccount(
+      wallet,
+      {
+        secretKey: Fr.random(),
+      },
+    );
 
     const initialBalance = await token.methods
-      .balance_of_private(constantsAccount.address)
+      .balance_of_private(initializerlessAccount.address)
       .simulate({ from: deployerAddress });
     expect(initialBalance).toEqual(0n);
 
     const capsule = createSigningKeyCapsule(
-      constantsAccount.address,
-      constantsAccount.actualSalt,
-      constantsAccount.signingPublicKey,
+      initializerlessAccount.address,
+      initializerlessAccount.actualSalt,
+      initializerlessAccount.signingPublicKey,
     );
 
     const tx = await dripper.methods
       .drip_to_private(token.address, DRIP_AMOUNT)
       .with({ capsules: [capsule] })
       .send({
-        from: constantsAccount.address,
+        from: initializerlessAccount.address,
         fee: { paymentMethod: sponsoredPaymentMethod },
       });
     expect(tx.isMined()).toBe(true);
@@ -148,7 +151,7 @@ describe("Initializerless Account with Dripper FPC", () => {
     // Check private balance using unconstrained function
     // Note: balance_of_private is an unconstrained function that reads from PXE state
     const finalBalance = await token.methods
-      .balance_of_private(constantsAccount.address)
+      .balance_of_private(initializerlessAccount.address)
       .simulate({ from: deployerAddress });
 
     expect(finalBalance).toEqual(DRIP_AMOUNT);
@@ -184,7 +187,7 @@ describe("Initializerless Account with Dripper FPC", () => {
   });
 
   it("should allow unpublished account to send private transactions", async () => {
-    const unpublishedAccount = await registerConstantsAccount(wallet, {
+    const unpublishedAccount = await registerInitializerlessAccount(wallet, {
       secretKey: Fr.random(),
       skipInstancePublication: true,
     });
@@ -223,7 +226,7 @@ describe("Initializerless Account with Dripper FPC", () => {
   });
 
   it("should allow unpublished account to send public transactions", async () => {
-    const unpublishedAccount = await registerConstantsAccount(wallet, {
+    const unpublishedAccount = await registerInitializerlessAccount(wallet, {
       secretKey: Fr.random(),
       skipInstancePublication: true,
     });
@@ -256,18 +259,21 @@ describe("Initializerless Account with Dripper FPC", () => {
 
   it("should demonstrate both accounts working side by side with transfers", async () => {
     // Deploy both account types
-    const constantsAccount = await registerConstantsAccount(wallet, {
-      secretKey: Fr.random(),
-    });
+    const initializerlessAccount = await registerInitializerlessAccount(
+      wallet,
+      {
+        secretKey: Fr.random(),
+      },
+    );
     const standardAccount = await deploySchnorrAccount(wallet, {
       secretKey: Fr.random(),
     });
 
-    // Create capsule for the constants account (needed for every transaction)
+    // Create capsule for the initializerless account (needed for every transaction)
     const capsule = createSigningKeyCapsule(
-      constantsAccount.address,
-      constantsAccount.actualSalt,
-      constantsAccount.signingPublicKey,
+      initializerlessAccount.address,
+      initializerlessAccount.actualSalt,
+      initializerlessAccount.signingPublicKey,
     );
 
     // Drip to both accounts in sequence - each gets DRIP_AMOUNT (1000)
@@ -275,7 +281,7 @@ describe("Initializerless Account with Dripper FPC", () => {
       .drip_to_private(token.address, DRIP_AMOUNT)
       .with({ capsules: [capsule] })
       .send({
-        from: constantsAccount.address,
+        from: initializerlessAccount.address,
         fee: { paymentMethod: sponsoredPaymentMethod },
       });
 
@@ -284,10 +290,10 @@ describe("Initializerless Account with Dripper FPC", () => {
       fee: { paymentMethod: sponsoredPaymentMethod },
     });
 
-    const initialConstantsPrivateBalance = await token.methods
-      .balance_of_private(constantsAccount.address)
+    const initialInitializerlessPrivateBalance = await token.methods
+      .balance_of_private(initializerlessAccount.address)
       .simulate({ from: deployerAddress });
-    expect(initialConstantsPrivateBalance).toEqual(DRIP_AMOUNT);
+    expect(initialInitializerlessPrivateBalance).toEqual(DRIP_AMOUNT);
 
     const initialStandardPrivateBalance = await token.methods
       .balance_of_private(standardAccount.contract.address)
@@ -297,27 +303,27 @@ describe("Initializerless Account with Dripper FPC", () => {
     // Transfer amounts
     const TRANSFER_TO_STANDARD = 100n;
     const TRANSFER_TO_PUBLIC = 100n;
-    const TRANSFER_TO_CONSTANTS = 50n;
+    const TRANSFER_TO_INITIALIZERLESS = 50n;
 
-    // 1. ConstantsAccount transfers 100 private tokens to StandardAccount
+    // 1. InitializerlessAccount transfers 100 private tokens to StandardAccount
     await token.methods
       .transfer_private_to_private(
-        constantsAccount.address, // from
+        initializerlessAccount.address, // from
         standardAccount.contract.address, // to
         TRANSFER_TO_STANDARD, // amount
         0n, // nonce (0 when sender is caller)
       )
       .with({ capsules: [capsule] })
       .send({
-        from: constantsAccount.address,
+        from: initializerlessAccount.address,
         fee: { paymentMethod: sponsoredPaymentMethod },
       });
 
-    const tx1ConstantsPrivateBalance = await token.methods
-      .balance_of_private(constantsAccount.address)
+    const tx1InitializerlessPrivateBalance = await token.methods
+      .balance_of_private(initializerlessAccount.address)
       .simulate({ from: deployerAddress });
-    expect(tx1ConstantsPrivateBalance).toEqual(
-      initialConstantsPrivateBalance - TRANSFER_TO_STANDARD,
+    expect(tx1InitializerlessPrivateBalance).toEqual(
+      initialInitializerlessPrivateBalance - TRANSFER_TO_STANDARD,
     );
 
     const tx1StandardPrivateBalance = await token.methods
@@ -327,38 +333,38 @@ describe("Initializerless Account with Dripper FPC", () => {
       initialStandardPrivateBalance + TRANSFER_TO_STANDARD,
     );
 
-    // 2. ConstantsAccount transfers 100 private tokens to self as public
+    // 2. InitializerlessAccount transfers 100 private tokens to self as public
     await token.methods
       .transfer_private_to_public(
-        constantsAccount.address, // from
-        constantsAccount.address, // to (self)
+        initializerlessAccount.address, // from
+        initializerlessAccount.address, // to (self)
         TRANSFER_TO_PUBLIC, // amount
         0n, // nonce
       )
       .with({ capsules: [capsule] })
       .send({
-        from: constantsAccount.address,
+        from: initializerlessAccount.address,
         fee: { paymentMethod: sponsoredPaymentMethod },
       });
 
-    const tx2ConstantsPrivateBalance = await token.methods
-      .balance_of_private(constantsAccount.address)
+    const tx2InitializerlessPrivateBalance = await token.methods
+      .balance_of_private(initializerlessAccount.address)
       .simulate({ from: deployerAddress });
-    expect(tx2ConstantsPrivateBalance).toEqual(
-      tx1ConstantsPrivateBalance - TRANSFER_TO_PUBLIC,
+    expect(tx2InitializerlessPrivateBalance).toEqual(
+      tx1InitializerlessPrivateBalance - TRANSFER_TO_PUBLIC,
     );
 
-    const tx2ConstantsPublicBalance = await token.methods
-      .balance_of_public(constantsAccount.address)
+    const tx2InitializerlessPublicBalance = await token.methods
+      .balance_of_public(initializerlessAccount.address)
       .simulate({ from: deployerAddress });
-    expect(tx2ConstantsPublicBalance).toEqual(TRANSFER_TO_PUBLIC);
+    expect(tx2InitializerlessPublicBalance).toEqual(TRANSFER_TO_PUBLIC);
 
-    // 3. StandardAccount transfers 50 private tokens to ConstantsAccount
+    // 3. StandardAccount transfers 50 private tokens to InitializerlessAccount
     await token.methods
       .transfer_private_to_private(
         standardAccount.contract.address, // from
-        constantsAccount.address, // to
-        TRANSFER_TO_CONSTANTS, // amount
+        initializerlessAccount.address, // to
+        TRANSFER_TO_INITIALIZERLESS, // amount
         0n, // nonce
       )
       .send({
@@ -366,39 +372,39 @@ describe("Initializerless Account with Dripper FPC", () => {
         fee: { paymentMethod: sponsoredPaymentMethod },
       });
 
-    const tx3ConstantsPrivateBalance = await token.methods
-      .balance_of_private(constantsAccount.address)
+    const tx3InitializerlessPrivateBalance = await token.methods
+      .balance_of_private(initializerlessAccount.address)
       .simulate({ from: deployerAddress });
-    expect(tx3ConstantsPrivateBalance).toEqual(
-      tx2ConstantsPrivateBalance + TRANSFER_TO_CONSTANTS,
+    expect(tx3InitializerlessPrivateBalance).toEqual(
+      tx2InitializerlessPrivateBalance + TRANSFER_TO_INITIALIZERLESS,
     );
 
     const tx3StandardPrivateBalance = await token.methods
       .balance_of_private(standardAccount.contract.address)
       .simulate({ from: deployerAddress });
     expect(tx3StandardPrivateBalance).toEqual(
-      tx1StandardPrivateBalance - TRANSFER_TO_CONSTANTS,
+      tx1StandardPrivateBalance - TRANSFER_TO_INITIALIZERLESS,
     );
 
     // Verify final balances
-    // ConstantsAccount: 1000 - 100 (to standard) - 100 (to public) + 50 (from standard) = 850 private, 100 public
-    // StandardAccount: 1000 + 100 (from constants) - 50 (to constants) = 1050 private, 0 public
-    const expectedConstantsPrivate =
+    // InitializerlessAccount: 1000 - 100 (to standard) - 100 (to public) + 50 (from standard) = 850 private, 100 public
+    // StandardAccount: 1000 + 100 (from initializerless) - 50 (to initializerless) = 1050 private, 0 public
+    const expectedInitializerlessPrivate =
       DRIP_AMOUNT -
       TRANSFER_TO_STANDARD -
       TRANSFER_TO_PUBLIC +
-      TRANSFER_TO_CONSTANTS;
-    const expectedConstantsPublic = TRANSFER_TO_PUBLIC;
+      TRANSFER_TO_INITIALIZERLESS;
+    const expectedInitializerlessPublic = TRANSFER_TO_PUBLIC;
     const expectedStandardPrivate =
-      DRIP_AMOUNT + TRANSFER_TO_STANDARD - TRANSFER_TO_CONSTANTS;
+      DRIP_AMOUNT + TRANSFER_TO_STANDARD - TRANSFER_TO_INITIALIZERLESS;
     const expectedStandardPublic = 0n;
 
-    const constantsPrivateBalance = await token.methods
-      .balance_of_private(constantsAccount.address)
+    const initializerlessPrivateBalance = await token.methods
+      .balance_of_private(initializerlessAccount.address)
       .simulate({ from: deployerAddress });
 
-    const constantsPublicBalance = await token.methods
-      .balance_of_public(constantsAccount.address)
+    const initializerlessPublicBalance = await token.methods
+      .balance_of_public(initializerlessAccount.address)
       .simulate({ from: deployerAddress });
 
     const standardPrivateBalance = await token.methods
@@ -409,18 +415,20 @@ describe("Initializerless Account with Dripper FPC", () => {
       .balance_of_public(standardAccount.contract.address)
       .simulate({ from: deployerAddress });
 
-    expect(constantsPrivateBalance).toEqual(expectedConstantsPrivate);
-    expect(constantsPublicBalance).toEqual(expectedConstantsPublic);
+    expect(initializerlessPrivateBalance).toEqual(
+      expectedInitializerlessPrivate,
+    );
+    expect(initializerlessPublicBalance).toEqual(expectedInitializerlessPublic);
     expect(standardPrivateBalance).toEqual(expectedStandardPrivate);
     expect(standardPublicBalance).toEqual(expectedStandardPublic);
   });
 
   it("should reject transaction signed with wrong private key", async () => {
     // Deploy two accounts with different signing keys
-    const account = await registerConstantsAccount(wallet, {
+    const account = await registerInitializerlessAccount(wallet, {
       secretKey: Fr.random(),
     });
-    const wrongAccount = await registerConstantsAccount(wallet, {
+    const wrongAccount = await registerInitializerlessAccount(wallet, {
       secretKey: Fr.random(),
     });
 
@@ -451,48 +459,51 @@ describe("Initializerless Account with Dripper FPC", () => {
   });
 
   it("should verify auth witness for delegated transfer", async () => {
-    // Deploy a constants account and give it tokens
-    const constantsAccount = await registerConstantsAccount(wallet, {
-      secretKey: Fr.random(),
-    });
-
-    const capsule = createSigningKeyCapsule(
-      constantsAccount.address,
-      constantsAccount.actualSalt,
-      constantsAccount.signingPublicKey,
+    // Deploy an initializerless account and give it tokens
+    const initializerlessAccount = await registerInitializerlessAccount(
+      wallet,
+      {
+        secretKey: Fr.random(),
+      },
     );
 
-    // Drip tokens to the constants account
+    const capsule = createSigningKeyCapsule(
+      initializerlessAccount.address,
+      initializerlessAccount.actualSalt,
+      initializerlessAccount.signingPublicKey,
+    );
+
+    // Drip tokens to the initializerless account
     await dripper.methods
       .drip_to_private(token.address, DRIP_AMOUNT)
       .with({ capsules: [capsule] })
       .send({
-        from: constantsAccount.address,
+        from: initializerlessAccount.address,
         fee: { paymentMethod: sponsoredPaymentMethod },
       });
 
     const TRANSFER_AMOUNT = 100n;
     const nonce = Fr.random();
 
-    // Create the action that deployerAddress wants to execute on behalf of constantsAccount
+    // Create the action that deployerAddress wants to execute on behalf of initializerlessAccount
     const action = token.methods.transfer_private_to_private(
-      constantsAccount.address,
+      initializerlessAccount.address,
       deployerAddress,
       TRANSFER_AMOUNT,
       nonce,
     );
 
-    // constantsAccount creates an auth witness approving this action
-    const witness = await wallet.createAuthWit(constantsAccount.address, {
+    // initializerlessAccount creates an auth witness approving this action
+    const witness = await wallet.createAuthWit(initializerlessAccount.address, {
       caller: deployerAddress,
       action,
     });
 
-    // deployerAddress executes the transfer on behalf of constantsAccount
+    // deployerAddress executes the transfer on behalf of initializerlessAccount
     // The capsule is needed because verify_private_authwit loads the signing key
     const tx = await token.methods
       .transfer_private_to_private(
-        constantsAccount.address,
+        initializerlessAccount.address,
         deployerAddress,
         TRANSFER_AMOUNT,
         nonce,
@@ -506,10 +517,10 @@ describe("Initializerless Account with Dripper FPC", () => {
     expect(tx.isMined()).toBe(true);
 
     // Verify balances
-    const constantsBalance = await token.methods
-      .balance_of_private(constantsAccount.address)
+    const initializerlessBalance = await token.methods
+      .balance_of_private(initializerlessAccount.address)
       .simulate({ from: deployerAddress });
-    expect(constantsBalance).toEqual(DRIP_AMOUNT - TRANSFER_AMOUNT);
+    expect(initializerlessBalance).toEqual(DRIP_AMOUNT - TRANSFER_AMOUNT);
 
     const deployerBalance = await token.methods
       .balance_of_private(deployerAddress)
@@ -519,13 +530,13 @@ describe("Initializerless Account with Dripper FPC", () => {
 
   it("should verify contract metadata for published vs unpublished accounts", async () => {
     // Deploy a published account (default behavior)
-    const publishedAccount = await registerConstantsAccount(wallet, {
+    const publishedAccount = await registerInitializerlessAccount(wallet, {
       secretKey: Fr.random(),
     });
     expect(publishedAccount.isPublished).toBe(true);
 
     // Deploy an unpublished account (PXE-only)
-    const unpublishedAccount = await registerConstantsAccount(wallet, {
+    const unpublishedAccount = await registerInitializerlessAccount(wallet, {
       secretKey: Fr.random(),
       skipInstancePublication: true,
     });

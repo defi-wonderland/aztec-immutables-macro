@@ -648,23 +648,6 @@
     "@aztec/stdlib" "4.0.0-devnet.1-patch.0"
     tslib "^2.4.0"
 
-"@aztec/aztec.js@3.0.0-devnet.2":
-  version "3.0.0-devnet.2"
-  resolved "https://registry.yarnpkg.com/@aztec/aztec.js/-/aztec.js-3.0.0-devnet.2.tgz#ac9d048a2ab77b7e61342ac8bc2ebaf19160bccd"
-  integrity sha512-3suXrSKeZUq9rMWgyYLxOUDKwxcbcnX1PX82dBRqlsAagThwHi3NPD+9QiEO/7vU2G27oQzrb6YRmARnVqL6aQ==
-  dependencies:
-    "@aztec/constants" "3.0.0-devnet.2"
-    "@aztec/entrypoints" "3.0.0-devnet.2"
-    "@aztec/ethereum" "3.0.0-devnet.2"
-    "@aztec/foundation" "3.0.0-devnet.2"
-    "@aztec/l1-artifacts" "3.0.0-devnet.2"
-    "@aztec/protocol-contracts" "3.0.0-devnet.2"
-    "@aztec/stdlib" "3.0.0-devnet.2"
-    axios "^1.12.0"
-    tslib "^2.4.0"
-    viem "npm:@spalladino/viem@2.38.2-eip7594.0"
-    zod "^3.23.8"
-
 "@aztec/aztec.js@4.0.0-devnet.1-patch.0":
   version "4.0.0-devnet.1-patch.0"
   resolved "https://registry.yarnpkg.com/@aztec/aztec.js/-/aztec.js-4.0.0-devnet.1-patch.0.tgz#c93dbda06bb1ac01627b8e524fa4244be608e94d"
@@ -702,19 +685,6 @@
     source-map-support "^0.5.21"
     tslib "^2.4.0"
 
-"@aztec/bb.js@3.0.0-devnet.2":
-  version "3.0.0-devnet.2"
-  resolved "https://registry.yarnpkg.com/@aztec/bb.js/-/bb.js-3.0.0-devnet.2.tgz#ecdd91bcbb2de525433ea3a6ff8ad17026422bf3"
-  integrity sha512-KRU8YuFuZ68J2I6woQ+NJsRZcr3WG2n1KaRKcT83l9fjG8OtNmPH77/SXio/cPOXjXvdzTDvfiNNt54o1olfLg==
-  dependencies:
-    comlink "^4.4.1"
-    commander "^12.1.0"
-    idb-keyval "^6.2.1"
-    msgpackr "^1.11.2"
-    pako "^2.1.0"
-    pino "^9.5.0"
-    tslib "^2.4.0"
-
 "@aztec/bb.js@4.0.0-devnet.1-patch.0":
   version "4.0.0-devnet.1-patch.0"
   resolved "https://registry.yarnpkg.com/@aztec/bb.js/-/bb.js-4.0.0-devnet.1-patch.0.tgz#4225c42b57bfbe9de790445969d4d80031bd5d45"
@@ -725,16 +695,6 @@
     idb-keyval "^6.2.1"
     msgpackr "^1.11.2"
     pako "^2.1.0"
-    tslib "^2.4.0"
-
-"@aztec/blob-lib@3.0.0-devnet.2":
-  version "3.0.0-devnet.2"
-  resolved "https://registry.yarnpkg.com/@aztec/blob-lib/-/blob-lib-3.0.0-devnet.2.tgz#9a3bae3b7dd9724aea9126c5d128f0bcfe6c6f56"
-  integrity sha512-cRyjcgljsQ8ChNxufo4AdAasgS7IFzAgZw2pdkOkRyP/nXh1TyUx1QtrmgDU2R5oam+7HtUDck28gI0u2O80SA==
-  dependencies:
-    "@aztec/constants" "3.0.0-devnet.2"
-    "@aztec/foundation" "3.0.0-devnet.2"
-    "@crate-crypto/node-eth-kzg" "^0.10.0"
     tslib "^2.4.0"
 
 "@aztec/blob-lib@4.0.0-devnet.1-patch.0":
@@ -756,30 +716,12 @@
     "@aztec/stdlib" "4.0.0-devnet.1-patch.0"
     commander "^12.1.0"
 
-"@aztec/constants@3.0.0-devnet.2":
-  version "3.0.0-devnet.2"
-  resolved "https://registry.yarnpkg.com/@aztec/constants/-/constants-3.0.0-devnet.2.tgz#4444eceb6071ee90411a2316c0e43da6b47a1470"
-  integrity sha512-uM9kD87JDPwsSjb9ty6CO65I14G3J44FB90Btyf61Cv1Vi21hcTjWDLlExLdvm2EXSPyry/c3IM8hV7xMV5ZGA==
-  dependencies:
-    tslib "^2.4.0"
-
 "@aztec/constants@4.0.0-devnet.1-patch.0":
   version "4.0.0-devnet.1-patch.0"
   resolved "https://registry.yarnpkg.com/@aztec/constants/-/constants-4.0.0-devnet.1-patch.0.tgz#4944cbe51441999e09de74fe63e1277363e7a037"
   integrity sha512-U0NG1KtvaA08Hf9q9lkDCN9QYIxSDDltTllBB6//6PsOPQ3k8+wBWy5uQY8zvvWikkwQ+nqhZcDkTiDuXdGxJQ==
   dependencies:
     "@aztec/foundation" "4.0.0-devnet.1-patch.0"
-    tslib "^2.4.0"
-
-"@aztec/entrypoints@3.0.0-devnet.2":
-  version "3.0.0-devnet.2"
-  resolved "https://registry.yarnpkg.com/@aztec/entrypoints/-/entrypoints-3.0.0-devnet.2.tgz#04bcdb957a504d882f7c45f30c83bb552906fe06"
-  integrity sha512-7A/CbOj8ACKkKi2Fet5Ddl44Pfohp3j8RewFR4j8ZyT55EKJBabM3SdGcQ9aGA9TaNAoMoqmOqp1R3yRCVj5Vw==
-  dependencies:
-    "@aztec/constants" "3.0.0-devnet.2"
-    "@aztec/foundation" "3.0.0-devnet.2"
-    "@aztec/protocol-contracts" "3.0.0-devnet.2"
-    "@aztec/stdlib" "3.0.0-devnet.2"
     tslib "^2.4.0"
 
 "@aztec/entrypoints@4.0.0-devnet.1-patch.0":
@@ -792,23 +734,6 @@
     "@aztec/protocol-contracts" "4.0.0-devnet.1-patch.0"
     "@aztec/stdlib" "4.0.0-devnet.1-patch.0"
     tslib "^2.4.0"
-    zod "^3.23.8"
-
-"@aztec/ethereum@3.0.0-devnet.2":
-  version "3.0.0-devnet.2"
-  resolved "https://registry.yarnpkg.com/@aztec/ethereum/-/ethereum-3.0.0-devnet.2.tgz#16e5c5161214d1ef8d2476f4db123e66a6f48e4c"
-  integrity sha512-BkY6jt10LifQkATtaeyenXBSMbVAWcH95dPaQbeQMykMlmT4c2sNISn8O69IQDY8zAoET61+ivBbT7hP108FpQ==
-  dependencies:
-    "@aztec/blob-lib" "3.0.0-devnet.2"
-    "@aztec/constants" "3.0.0-devnet.2"
-    "@aztec/foundation" "3.0.0-devnet.2"
-    "@aztec/l1-artifacts" "3.0.0-devnet.2"
-    "@viem/anvil" "^0.0.10"
-    dotenv "^16.0.3"
-    lodash.chunk "^4.2.0"
-    lodash.pickby "^4.5.0"
-    tslib "^2.4.0"
-    viem "npm:@spalladino/viem@2.38.2-eip7594.0"
     zod "^3.23.8"
 
 "@aztec/ethereum@4.0.0-devnet.1-patch.0":
@@ -826,32 +751,6 @@
     lodash.pickby "^4.5.0"
     tslib "^2.4.0"
     viem "npm:@aztec/viem@2.38.2"
-    zod "^3.23.8"
-
-"@aztec/foundation@3.0.0-devnet.2":
-  version "3.0.0-devnet.2"
-  resolved "https://registry.yarnpkg.com/@aztec/foundation/-/foundation-3.0.0-devnet.2.tgz#b4a409c80c0bc31ae3e1270802f1b660db2d6433"
-  integrity sha512-EYtzdsr8R+tIBjQWSKA/Z91ElCPSUobdcP9RmXmnNi5ByOs+3gpRIbrIz1mBb+9dG+jq0iVNadq/2raUz+e4pQ==
-  dependencies:
-    "@aztec/bb.js" "3.0.0-devnet.2"
-    "@koa/cors" "^5.0.0"
-    "@noble/curves" "=1.7.0"
-    bn.js "^5.2.1"
-    colorette "^2.0.20"
-    detect-node "^2.1.0"
-    hash.js "^1.1.7"
-    koa "^2.16.1"
-    koa-bodyparser "^4.4.0"
-    koa-compress "^5.1.0"
-    koa-router "^13.1.1"
-    leveldown "^6.1.1"
-    lodash.chunk "^4.2.0"
-    lodash.clonedeepwith "^4.5.0"
-    pako "^2.1.0"
-    pino "^9.5.0"
-    pino-pretty "^13.0.0"
-    sha3 "^2.1.4"
-    undici "^5.28.5"
     zod "^3.23.8"
 
 "@aztec/foundation@4.0.0-devnet.1-patch.0":
@@ -909,13 +808,6 @@
     ohash "^2.0.11"
     ordered-binary "^1.5.3"
 
-"@aztec/l1-artifacts@3.0.0-devnet.2":
-  version "3.0.0-devnet.2"
-  resolved "https://registry.yarnpkg.com/@aztec/l1-artifacts/-/l1-artifacts-3.0.0-devnet.2.tgz#0365bc7a25ee9dd1dafa455b18b7c1a45cc7e489"
-  integrity sha512-F/zs3JlV6tA09OgxvrLZkphG+f+GvLPRqgPGD0JxHqYpcyHhj6oF91sCoUNmja/L1WhY9PBblI5/Sz2yftEySw==
-  dependencies:
-    tslib "^2.4.0"
-
 "@aztec/l1-artifacts@4.0.0-devnet.1-patch.0":
   version "4.0.0-devnet.1-patch.0"
   resolved "https://registry.yarnpkg.com/@aztec/l1-artifacts/-/l1-artifacts-4.0.0-devnet.1-patch.0.tgz#731334b1eec314c721adc1a437628f54b7d708e2"
@@ -965,13 +857,6 @@
     glob "^13.0.0"
     ts-command-line-args "^2.5.1"
 
-"@aztec/noir-noirc_abi@3.0.0-devnet.2":
-  version "3.0.0-devnet.2"
-  resolved "https://registry.yarnpkg.com/@aztec/noir-noirc_abi/-/noir-noirc_abi-3.0.0-devnet.2.tgz#8d0be9b9b15572dbb59cf9c10af2f642eee59362"
-  integrity sha512-stPneUeYTdGBzzt21oPJv3+8/QpjiI/3rvmet3k1ZFvGZFyPq0GL87kTKOQdStE4shc8ypOEG00isGTGNtTRmg==
-  dependencies:
-    "@aztec/noir-types" "3.0.0-devnet.2"
-
 "@aztec/noir-noirc_abi@4.0.0-devnet.1-patch.0":
   version "4.0.0-devnet.1-patch.0"
   resolved "https://registry.yarnpkg.com/@aztec/noir-noirc_abi/-/noir-noirc_abi-4.0.0-devnet.1-patch.0.tgz#263f2a58db41bede66f8bc3bdcbc6e29a79875da"
@@ -995,27 +880,10 @@
     change-case "^5.4.4"
     tslib "^2.4.0"
 
-"@aztec/noir-types@3.0.0-devnet.2":
-  version "3.0.0-devnet.2"
-  resolved "https://registry.yarnpkg.com/@aztec/noir-types/-/noir-types-3.0.0-devnet.2.tgz#fa5ea3fd29bd507e3d8fd38cadb51842790c92d5"
-  integrity sha512-XXOfS9flhEStIJOneZJJlIQjgegWvmfeqSpGzSPHBBvYUAWSZVbjfl+8AEJcamVo311EyqQWiwScJh+1xvM4lw==
-
 "@aztec/noir-types@4.0.0-devnet.1-patch.0":
   version "4.0.0-devnet.1-patch.0"
   resolved "https://registry.yarnpkg.com/@aztec/noir-types/-/noir-types-4.0.0-devnet.1-patch.0.tgz#fa681cd4ecc290cd319718be70f249cbfd47c5b9"
   integrity sha512-VVtp8lF4pLLxQ+k+HheorUSyY2w0izP2P+XpvgsCqArkOfmODDj3m5Nh8+cUCO8N/mK035cEj5MF/aScixwdAQ==
-
-"@aztec/protocol-contracts@3.0.0-devnet.2":
-  version "3.0.0-devnet.2"
-  resolved "https://registry.yarnpkg.com/@aztec/protocol-contracts/-/protocol-contracts-3.0.0-devnet.2.tgz#0d3a329f2c8782b05af32b1b5a9b72f0098b1dc2"
-  integrity sha512-W4bcAv2c5FwxzA9JLm8aQx5J0aH7hEWGICK/lMGTr0AotuXsg3mzixg27JB2T4XHSmL7jVX589ci72FdBv4/nQ==
-  dependencies:
-    "@aztec/constants" "3.0.0-devnet.2"
-    "@aztec/foundation" "3.0.0-devnet.2"
-    "@aztec/stdlib" "3.0.0-devnet.2"
-    lodash.chunk "^4.2.0"
-    lodash.omit "^4.5.0"
-    tslib "^2.4.0"
 
 "@aztec/protocol-contracts@4.0.0-devnet.1-patch.0":
   version "4.0.0-devnet.1-patch.0"
@@ -1073,32 +941,6 @@
     lodash.clonedeep "^4.5.0"
     lodash.merge "^4.6.2"
     tslib "^2.4.0"
-
-"@aztec/stdlib@3.0.0-devnet.2":
-  version "3.0.0-devnet.2"
-  resolved "https://registry.yarnpkg.com/@aztec/stdlib/-/stdlib-3.0.0-devnet.2.tgz#efe4a0874ab4eba3b5da0408c375da28fef8f989"
-  integrity sha512-YTepOqs+0aPK6pXj1LqPiYFJHcq2pyYDvUXaNaLG5FdxghdhepZQd1KjG4V7zm2cXIqASlgVyzsBJ2mTZKhaXQ==
-  dependencies:
-    "@aws-sdk/client-s3" "^3.892.0"
-    "@aztec/bb.js" "3.0.0-devnet.2"
-    "@aztec/blob-lib" "3.0.0-devnet.2"
-    "@aztec/constants" "3.0.0-devnet.2"
-    "@aztec/ethereum" "3.0.0-devnet.2"
-    "@aztec/foundation" "3.0.0-devnet.2"
-    "@aztec/l1-artifacts" "3.0.0-devnet.2"
-    "@aztec/noir-noirc_abi" "3.0.0-devnet.2"
-    "@google-cloud/storage" "^7.15.0"
-    axios "^1.12.0"
-    json-stringify-deterministic "1.0.12"
-    lodash.chunk "^4.2.0"
-    lodash.isequal "^4.5.0"
-    lodash.omit "^4.5.0"
-    lodash.times "^4.3.2"
-    msgpackr "^1.11.2"
-    pako "^2.1.0"
-    tslib "^2.4.0"
-    viem "npm:@spalladino/viem@2.38.2-eip7594.0"
-    zod "^3.23.8"
 
 "@aztec/stdlib@4.0.0-devnet.1-patch.0":
   version "4.0.0-devnet.1-patch.0"
@@ -1415,14 +1257,15 @@
     "@crate-crypto/node-eth-kzg-win32-arm64-msvc" "0.10.0"
     "@crate-crypto/node-eth-kzg-win32-x64-msvc" "0.10.0"
 
-"@defi-wonderland/aztec-benchmark@3.0.0-devnet.2":
-  version "3.0.0-devnet.2"
-  resolved "https://registry.yarnpkg.com/@defi-wonderland/aztec-benchmark/-/aztec-benchmark-3.0.0-devnet.2.tgz#7e2e9e83562d0270e5e361d083acaac520cec878"
-  integrity sha512-vCkP+eGacLMCuHZIb/pbOF2kvdKT7baIOggrO1y7Dk239w+1Qh9Yxp1oHf00mcNOqSdF+Dtr30m0TjJvQazHxQ==
+"@defi-wonderland/aztec-benchmark@4.0.0-devnet.1-patch.0":
+  version "4.0.0-devnet.1-patch.0"
+  resolved "https://registry.yarnpkg.com/@defi-wonderland/aztec-benchmark/-/aztec-benchmark-4.0.0-devnet.1-patch.0.tgz#25a4bcc0f8e4f8c7dcbd0fb723281106daf69a57"
+  integrity sha512-9OzR7ugNIsViHQsPTuyFxwH0SV5Z7wAxxx0BsQL9hJ5uimYZw9evkGF5Qgw4B0k3RJB0WPII+u6khqLuuARdZQ==
   dependencies:
     "@actions/core" "1.10.1"
     "@actions/exec" "1.1.1"
-    "@aztec/aztec.js" "3.0.0-devnet.2"
+    "@aztec/aztec.js" "4.0.0-devnet.1-patch.0"
+    "@aztec/test-wallet" "4.0.0-devnet.1-patch.0"
     "@iarna/toml" "2.2.5"
     "@types/node" "22.15.3"
     commander "13.1.0"
@@ -6056,20 +5899,6 @@ vary@^1.1.2:
   version "2.38.2"
   resolved "https://registry.yarnpkg.com/@aztec/viem/-/viem-2.38.2.tgz#9c626b46569cce1f30f08f7be23fb73846aea520"
   integrity sha512-q975q5/On5DSTQDJb0yu0AewnCPIckP4EHp2XOx1GrRn0yJd3TdOKVwuH7HjWtyvh3moFaPogBSHnp7bj4GpdQ==
-  dependencies:
-    "@noble/curves" "1.9.1"
-    "@noble/hashes" "1.8.0"
-    "@scure/bip32" "1.7.0"
-    "@scure/bip39" "1.6.0"
-    abitype "1.1.0"
-    isows "1.0.7"
-    ox "0.9.6"
-    ws "8.18.3"
-
-"viem@npm:@spalladino/viem@2.38.2-eip7594.0":
-  version "2.38.2-eip7594.0"
-  resolved "https://registry.yarnpkg.com/@spalladino/viem/-/viem-2.38.2-eip7594.0.tgz#d875366821c5fb07b8ed6f52610c21e0e3a761cd"
-  integrity sha512-1gwcB0wxqUoSuzbwTafhqLOeNPWOaIKkSUUvzgsg5gBDOXDxA8tPJWUXBFFdr640maizWRjTbP9GLuLzgMeSuQ==
   dependencies:
     "@noble/curves" "1.9.1"
     "@noble/hashes" "1.8.0"

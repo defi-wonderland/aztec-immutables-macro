@@ -5,9 +5,9 @@
  * standard SchnorrAccount contract, which uses an initializer to store
  * the signing public key in SinglePrivateImmutable storage.
  *
- * ## Comparison with SchnorrConstantsAccount
+ * ## Comparison with SchnorrInitializerlessAccount
  *
- * | Feature | This Contract | SchnorrConstantsAccount |
+ * | Feature | This Contract | SchnorrInitializerlessAccount |
  * |---------|---------------|------------------------|
  * | Storage | SinglePrivateImmutable | Capsule storage |
  * | Initializer | Required (constructor) | Not required |

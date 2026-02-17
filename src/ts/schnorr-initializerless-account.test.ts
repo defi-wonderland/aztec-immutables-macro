@@ -1,11 +1,11 @@
 /**
- * E2E Tests for SchnorrConstantsAccount
+ * E2E Tests for SchnorrInitializerlessAccount
  *
- * These tests verify the initializerless constants pattern for an account contract
+ * These tests verify the initializerless immutables pattern for an account contract
  * that stores a signing public key committed via salt.
  *
  * Unlike Noir TXE tests, these E2E tests have full control over deployment and
- * properly verify the constants pattern works end-to-end.
+ * properly verify the immutables pattern works end-to-end.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
@@ -18,8 +18,8 @@ import {
   computeContractSalt,
   computeSchnorrAccountAddress,
   type SigningPublicKey,
-} from "./schnorr-constants-account/index.js";
-import { registerConstantsAccount } from "./schnorr-constants-account/utils.js";
+} from "./schnorr-initializerless-account/index.js";
+import { registerInitializerlessAccount } from "./schnorr-initializerless-account/utils.js";
 import { setupTestSuite } from "./utils.js";
 
 const SIGNING_KEY_1 = {
@@ -33,7 +33,7 @@ const SIGNING_KEY_2 = {
 const ACTUAL_SALT_1 = new Fr(12345n);
 const ACTUAL_SALT_2 = new Fr(54321n);
 
-describe("SchnorrConstantsAccount - Initializerless Constants Pattern", () => {
+describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", () => {
   let store: AztecLMDBStoreV2;
   let wallet: TestWallet;
   let alice: AztecAddress;
@@ -43,7 +43,7 @@ describe("SchnorrConstantsAccount - Initializerless Constants Pattern", () => {
       store,
       wallet,
       accounts: [alice],
-    } = await setupTestSuite("schnorr-constants"));
+    } = await setupTestSuite("schnorr-immutables"));
   });
 
   afterAll(async () => {
@@ -117,7 +117,7 @@ describe("SchnorrConstantsAccount - Initializerless Constants Pattern", () => {
   describe("Published", () => {
     it("should deploy account with signing key and read it back", async () => {
       const { contract, actualSalt, signingPublicKey, isPublished } =
-        await registerConstantsAccount(wallet);
+        await registerInitializerlessAccount(wallet);
 
       expect(isPublished).toBe(true);
       expect(contract.address).toBeDefined();
@@ -143,10 +143,10 @@ describe("SchnorrConstantsAccount - Initializerless Constants Pattern", () => {
     });
 
     it("should deploy with different secret keys and get different addresses", async () => {
-      const account1 = await registerConstantsAccount(wallet, {
+      const account1 = await registerInitializerlessAccount(wallet, {
         secretKey: Fr.random(),
       });
-      const account2 = await registerConstantsAccount(wallet, {
+      const account2 = await registerInitializerlessAccount(wallet, {
         secretKey: Fr.random(),
       });
 
@@ -183,7 +183,7 @@ describe("SchnorrConstantsAccount - Initializerless Constants Pattern", () => {
 
     it("should fail with wrong capsule data", async () => {
       const { contract, actualSalt, signingPublicKey } =
-        await registerConstantsAccount(wallet);
+        await registerInitializerlessAccount(wallet);
 
       // Try to call with a different (wrong) signing key in capsule
       const wrongKey: SigningPublicKey = {
@@ -202,14 +202,14 @@ describe("SchnorrConstantsAccount - Initializerless Constants Pattern", () => {
           .get_signing_public_key()
           .with({ capsules: [wrongCapsule] })
           .simulate({ from: alice }),
-      ).rejects.toThrow("Constants do not match contract salt");
+      ).rejects.toThrow("Immutables do not match contract salt");
     });
 
     it("should deploy multiple accounts with different keys", async () => {
       const deployments = await Promise.all([
-        registerConstantsAccount(wallet, { secretKey: Fr.random() }),
-        registerConstantsAccount(wallet, { secretKey: Fr.random() }),
-        registerConstantsAccount(wallet, { secretKey: Fr.random() }),
+        registerInitializerlessAccount(wallet, { secretKey: Fr.random() }),
+        registerInitializerlessAccount(wallet, { secretKey: Fr.random() }),
+        registerInitializerlessAccount(wallet, { secretKey: Fr.random() }),
       ]);
 
       // Verify all addresses are unique
@@ -239,7 +239,7 @@ describe("SchnorrConstantsAccount - Initializerless Constants Pattern", () => {
   describe("Unpublished (PXE-only)", () => {
     it("should deploy unpublished account and read signing key back", async () => {
       const { contract, actualSalt, signingPublicKey, isPublished } =
-        await registerConstantsAccount(wallet, {
+        await registerInitializerlessAccount(wallet, {
           skipInstancePublication: true,
         });
 
@@ -267,11 +267,11 @@ describe("SchnorrConstantsAccount - Initializerless Constants Pattern", () => {
     });
 
     it("should deploy unpublished with different secret keys and get different addresses", async () => {
-      const account1 = await registerConstantsAccount(wallet, {
+      const account1 = await registerInitializerlessAccount(wallet, {
         secretKey: Fr.random(),
         skipInstancePublication: true,
       });
-      const account2 = await registerConstantsAccount(wallet, {
+      const account2 = await registerInitializerlessAccount(wallet, {
         secretKey: Fr.random(),
         skipInstancePublication: true,
       });
@@ -309,7 +309,7 @@ describe("SchnorrConstantsAccount - Initializerless Constants Pattern", () => {
 
     it("should fail with wrong capsule data on unpublished account", async () => {
       const { contract, actualSalt, signingPublicKey } =
-        await registerConstantsAccount(wallet, {
+        await registerInitializerlessAccount(wallet, {
           skipInstancePublication: true,
         });
 
@@ -330,20 +330,20 @@ describe("SchnorrConstantsAccount - Initializerless Constants Pattern", () => {
           .get_signing_public_key()
           .with({ capsules: [wrongCapsule] })
           .simulate({ from: alice }),
-      ).rejects.toThrow("Constants do not match contract salt");
+      ).rejects.toThrow("Immutables do not match contract salt");
     });
 
     it("should deploy multiple unpublished accounts with different keys", async () => {
       const deployments = await Promise.all([
-        registerConstantsAccount(wallet, {
+        registerInitializerlessAccount(wallet, {
           secretKey: Fr.random(),
           skipInstancePublication: true,
         }),
-        registerConstantsAccount(wallet, {
+        registerInitializerlessAccount(wallet, {
           secretKey: Fr.random(),
           skipInstancePublication: true,
         }),
-        registerConstantsAccount(wallet, {
+        registerInitializerlessAccount(wallet, {
           secretKey: Fr.random(),
           skipInstancePublication: true,
         }),
