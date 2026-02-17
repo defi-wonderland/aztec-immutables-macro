@@ -1,7 +1,7 @@
-//! # Schnorr Constants Account Contract
+//! # Schnorr Immutables Account Contract
 //!
 //! An account contract using Schnorr signatures for authentication with the
-//! **initializerless constants** pattern. The signing public key is committed
+//! **initializerless immutables** pattern. The signing public key is committed
 //! via `salt` rather than stored in private immutable storage.
 //!
 //! ## Benefits over Standard SchnorrAccount
@@ -30,8 +30,8 @@ mod public_key;
 use aztec::macros::aztec;
 
 #[aztec]
-pub contract SchnorrConstantsAccount {
-    use dep::aztec::{
+pub contract SchnorrImmutablesAccount {
+    use aztec::{
         authwit::{
             account::AccountActions,
             auth::{compute_authwit_message_hash, compute_authwit_nullifier},
@@ -39,7 +39,7 @@ pub contract SchnorrConstantsAccount {
         },
         context::PrivateContext,
         hash::compute_siloed_nullifier,
-        macros::functions::{external, nophasecheck, view},
+        macros::functions::{allow_phase_change, external, view},
         oracle::{
             auth_witness::get_auth_witness,
             get_nullifier_membership_witness::get_low_nullifier_membership_witness,
@@ -50,11 +50,11 @@ pub contract SchnorrConstantsAccount {
 
     use crate::public_key::PublicKey;
 
-    use initializerless::constants;
+    use initializerless::immutables;
 
-    /// Constants struct containing the signing public key.
-    #[constants]
-    pub struct Constants {
+    /// Immutables struct containing the signing public key.
+    #[immutables]
+    pub struct Immutables {
         /// The signing public key (x, y coordinates on the Grumpkin curve)
         pub public_key: PublicKey,
     }
@@ -63,7 +63,7 @@ pub contract SchnorrConstantsAccount {
     ///
     /// @dev If you globally change the entrypoint signature, update account_entrypoint.ts
     #[external("private")]
-    #[nophasecheck]
+    #[allow_phase_change]
     fn entrypoint(app_payload: AppPayload, fee_payment_method: u8, cancellable: bool) {
         // Safety: set_sender_for_tags is an oracle call that registers this account
         // as the sender for private note delivery in nested calls. Required for
@@ -91,14 +91,14 @@ pub contract SchnorrConstantsAccount {
     ///
     /// ## Process
     ///
-    /// 1. Load and verify the signing public key from constants
+    /// 1. Load and verify the signing public key from immutables
     /// 2. Load the auth witness (signature) from oracle
     /// 3. Verify Schnorr signature of the outer_hash
     #[contract_library_method]
     fn is_valid_impl(context: &mut PrivateContext, outer_hash: Field) -> bool {
-        // Load and verify public key from constants
-        let constants = Constants::init(context);
-        let public_key = constants.public_key;
+        // Load and verify public key from immutables
+        let immutables = Immutables::init(context);
+        let public_key = immutables.public_key;
 
         // Load auth witness (signature)
         // Safety: The witness is only used as a "magical value" that makes the
@@ -133,9 +133,9 @@ pub contract SchnorrConstantsAccount {
     /// True if the authwit is valid and not yet consumed, false otherwise.
     #[external("utility")]
     unconstrained fn lookup_validity(consumer: AztecAddress, inner_hash: Field) -> bool {
-        // Load constants (unconstrained, no verification needed for simulation)
-        let constants = Constants::init_unconstrained(self.context);
-        let public_key = constants.public_key;
+        // Load immutables (unconstrained, no verification needed for simulation)
+        let immutables = Immutables::init_unconstrained(self.context);
+        let public_key = immutables.public_key;
 
         let message_hash = compute_authwit_message_hash(
             consumer,
@@ -171,11 +171,11 @@ pub contract SchnorrConstantsAccount {
 
     /// Returns the signing public key (for testing/debugging).
     ///
-    /// This is a utility function to verify the constants are loaded correctly.
+    /// This is a utility function to verify the immutables are loaded correctly.
     #[external("private")]
     fn get_signing_public_key() -> pub (Field, Field) {
-        let constants = Constants::init(self.context);
-        let public_key = constants.public_key;
+        let immutables = Immutables::init(self.context);
+        let public_key = immutables.public_key;
         (public_key.x, public_key.y)
     }
 }
