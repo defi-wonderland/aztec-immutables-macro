@@ -160,6 +160,15 @@ const result = await deployWithImmutables(wallet, artifact, serializedImmutables
 
 The immutables pattern is compatible with `#[storage]`. Both can coexist in the same contract — immutables are verified against `salt`, while storage is managed via the state tree. See `src/nr/immutables_contract` for an example of mixed usage.
 
+For contracts that need both immutables and an initializer (e.g., to set up mutable storage), pass the `initializer` and `initializerArgs` options to `deployWithImmutables`. This computes the correct `initializationHash` while still deriving the salt from immutables:
+
+```typescript
+const result = await deployWithImmutables(wallet, artifact, serializedImmutables, {
+  initializer: "initialize",
+  initializerArgs: [initialCounter],
+});
+```
+
 ### No `#[noinitcheck]` needed
 
 With the standard initializer pattern, any function that might be called before initialization requires the `#[noinitcheck]` attribute to bypass the initialization check — otherwise the contract rejects calls until `constructor()` has been executed. This means you need to carefully annotate functions like `entrypoint` and `verify_private_authwit`.
