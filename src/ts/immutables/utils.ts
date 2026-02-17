@@ -36,8 +36,10 @@ import { PublicKeys } from "@aztec/stdlib/keys";
 import {
   computeContractAddressFromInstance,
   getContractClassFromArtifact,
+  getContractInstanceFromInstantiationParams,
 } from "@aztec/stdlib/contract";
-import type { ContractArtifact } from "@aztec/stdlib/abi";
+import { getInitializer } from "@aztec/stdlib/abi";
+import type { ContractArtifact, FunctionAbi } from "@aztec/stdlib/abi";
 import type {
   ContractInstance,
   ContractInstanceWithAddress,
@@ -47,6 +49,7 @@ import {
   publishContractClass,
   publishInstance,
 } from "@aztec/aztec.js/deployment";
+import { ContractFunctionInteraction } from "@aztec/aztec.js/contracts";
 
 /**
  * Immutables slot - must match IMMUTABLES_SLOT in the #[immutables] Noir macro.
@@ -119,6 +122,10 @@ export interface ImmutablesInstanceOptions {
   actualSalt?: Fr;
   publicKeys?: PublicKeys;
   deployer?: AztecAddress;
+  /** Initializer function name or artifact. If provided, initializationHash is computed from it. */
+  initializer?: string | FunctionAbi;
+  /** Arguments for the initializer function */
+  initializerArgs?: any[];
 }
 
 /**
@@ -138,24 +145,36 @@ export async function createImmutablesInstance(
   options?: ImmutablesInstanceOptions,
 ): Promise<CreateImmutablesInstanceResult> {
   const actualSalt = options?.actualSalt ?? Fr.random();
-  const publicKeys = options?.publicKeys ?? PublicKeys.default();
-  const deployer = options?.deployer ?? AztecAddress.ZERO;
-
-  const contractClass = await getContractClassFromArtifact(artifact);
   const salt = computeContractSalt(actualSalt, serializedImmutables);
 
-  const instance: ContractInstance = {
-    version: 1,
-    salt,
-    deployer,
-    currentContractClassId: contractClass.id,
-    originalContractClassId: contractClass.id,
-    initializationHash: Fr.ZERO, // No initializer
-    publicKeys,
-  };
+  let instance: ContractInstanceWithAddress;
 
-  const address = await computeContractAddressFromInstance(instance);
-  return { instance: { ...instance, address }, actualSalt };
+  if (options?.initializer || options?.initializerArgs) {
+    // Use aztec's instance creation which computes initializationHash from constructor
+    instance = await getContractInstanceFromInstantiationParams(artifact, {
+      constructorArtifact: options.initializer,
+      constructorArgs: options.initializerArgs ?? [],
+      salt,
+      publicKeys: options?.publicKeys ?? PublicKeys.default(),
+      deployer: options?.deployer ?? AztecAddress.ZERO,
+    });
+  } else {
+    // No initializer path: initializationHash = Fr.ZERO
+    const contractClass = await getContractClassFromArtifact(artifact);
+    const rawInstance: ContractInstance = {
+      version: 1,
+      salt,
+      deployer: options?.deployer ?? AztecAddress.ZERO,
+      currentContractClassId: contractClass.id,
+      originalContractClassId: contractClass.id,
+      initializationHash: Fr.ZERO,
+      publicKeys: options?.publicKeys ?? PublicKeys.default(),
+    };
+    const address = await computeContractAddressFromInstance(rawInstance);
+    instance = { ...rawInstance, address };
+  }
+
+  return { instance, actualSalt };
 }
 
 /**
@@ -272,6 +291,23 @@ export async function deployWithImmutables(
     payloads.push(
       await publishInstanceInteraction.with({ capsules: [capsule] }).request(),
     );
+
+    // Call initializer if provided
+    if (options?.initializer || options?.initializerArgs) {
+      const initializerAbi =
+        typeof options.initializer === "string" || !options.initializer
+          ? getInitializer(artifact, options.initializer)
+          : options.initializer;
+      if (initializerAbi) {
+        const constructorCall = new ContractFunctionInteraction(
+          wallet,
+          instance.address,
+          initializerAbi,
+          options.initializerArgs ?? [],
+        );
+        payloads.push(await constructorCall.request());
+      }
+    }
 
     // Send as a single merged transaction
     const merged = mergeExecutionPayloads(payloads);

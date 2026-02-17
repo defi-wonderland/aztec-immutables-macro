@@ -104,6 +104,10 @@ describe("Immutables Contract - Initializerless Pattern", () => {
         AztecAddress.ZERO.toString(),
       );
 
+      // Verify instance IS published on-chain
+      const metadata = await wallet.getContractMetadata(contract.address);
+      expect(metadata.isContractPublished).toBe(true);
+
       const capsule = createImmutablesCapsule(
         contract.address,
         actualSalt,
@@ -120,6 +124,26 @@ describe("Immutables Contract - Initializerless Pattern", () => {
       expect(result[0]).toEqual(IMMUTABLES_1.signingKeyX.toBigInt());
       expect(result[1]).toEqual(IMMUTABLES_1.signingKeyY.toBigInt());
     });
+
+    it("should fail with wrong capsule data", async () => {
+      const { contract, actualSalt } = await deployImmutablesContract(
+        wallet,
+        IMMUTABLES_1,
+      );
+
+      const wrongCapsule = createImmutablesCapsule(
+        contract.address,
+        actualSalt,
+        serializeImmutables(IMMUTABLES_2),
+      );
+
+      await expect(
+        contract.methods
+          .get_signing_key()
+          .with({ capsules: [wrongCapsule] })
+          .simulate({ from: alice }),
+      ).rejects.toThrow("Immutables do not match contract salt");
+    });
   });
 
   // Unpublished (PXE-only) deployment tests
@@ -135,6 +159,10 @@ describe("Immutables Contract - Initializerless Pattern", () => {
       expect(contract.address.toString()).not.toBe(
         AztecAddress.ZERO.toString(),
       );
+
+      // Verify instance is NOT published on-chain
+      const metadata = await wallet.getContractMetadata(contract.address);
+      expect(metadata.isContractPublished).toBe(false);
 
       const capsule = createImmutablesCapsule(
         contract.address,
@@ -208,46 +236,36 @@ describe("Immutables Contract - Mixed Usage (Immutables + Storage)", () => {
     expect(counter).toEqual(INITIAL_COUNTER + 1n);
   });
 
-  it("should fail immutables verification in mixed usage (expected behavior)", async () => {
-    // This test documents that in mixed usage with standard deployment,
-    // immutables verification will fail because the contract's salt is
-    // computed from deployer-chosen values, not including the immutables.
+  it("should deploy mixed usage and read immutables back", async () => {
     const { contract, actualSalt } = await deployMixedUsageContract(
       wallet,
       IMMUTABLES_1,
       INITIAL_COUNTER,
     );
 
-    // Storage still works
+    // Storage works
     const counter = await contract.methods.get_counter().simulate({
       from: alice,
     });
     expect(counter).toEqual(INITIAL_COUNTER);
 
-    // Create capsule for the call
+    // Immutables verification now succeeds because salt is derived from immutables
     const capsule = createImmutablesCapsule(
       contract.address,
       actualSalt,
       serializeImmutables(IMMUTABLES_1),
     );
 
-    // But immutables verification fails because:
-    // - The standard deploy method computes salt from deployer-chosen values
-    // - Immutables::init computes poseidon2_hash([actualSalt, 555, 666])
-    // - These don't match the instance.salt
-    await expect(
-      contract.methods
-        .get_signing_key()
-        .with({ capsules: [capsule] })
-        .simulate({ from: alice }),
-    ).rejects.toThrow("Immutables do not match contract salt");
+    const result = await contract.methods
+      .get_signing_key()
+      .with({ capsules: [capsule] })
+      .simulate({ from: alice });
+
+    expect(result[0]).toEqual(IMMUTABLES_1.signingKeyX.toBigInt());
+    expect(result[1]).toEqual(IMMUTABLES_1.signingKeyY.toBigInt());
   });
 
-  it("should fail verify_immutables_and_increment due to salt mismatch (expected behavior)", async () => {
-    // This tests the combined private+public function that:
-    // 1. Verifies immutables in private context
-    // 2. Enqueues a public call to increment storage
-    // Due to mixed usage, the immutables verification step fails.
+  it("should verify immutables and increment storage", async () => {
     const { contract, actualSalt } = await deployMixedUsageContract(
       wallet,
       IMMUTABLES_1,
@@ -261,19 +279,18 @@ describe("Immutables Contract - Mixed Usage (Immutables + Storage)", () => {
       serializeImmutables(IMMUTABLES_1),
     );
 
-    // The private function fails at Immutables::init
-    // because salt doesn't include immutables
-    await expect(
-      contract.methods
-        .verify_immutables_and_increment()
-        .with({ capsules: [capsule] })
-        .simulate({ from: alice }),
-    ).rejects.toThrow("Immutables do not match contract salt");
+    // The combined private+public function should succeed:
+    // 1. Verifies immutables in private context
+    // 2. Enqueues a public call to increment storage
+    await contract.methods
+      .verify_immutables_and_increment()
+      .with({ capsules: [capsule] })
+      .send({ from: alice });
 
-    // Storage should remain unchanged since the call failed
+    // Counter should be incremented
     const counter = await contract.methods.get_counter().simulate({
       from: alice,
     });
-    expect(counter).toEqual(INITIAL_COUNTER);
+    expect(counter).toEqual(INITIAL_COUNTER + 1n);
   });
 });

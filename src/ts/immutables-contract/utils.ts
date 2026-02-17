@@ -80,20 +80,18 @@ export async function deployImmutablesContract(
 }
 
 /**
- * Deploys the ImmutablesContract using the standard initializer pattern.
+ * Deploys the ImmutablesContract with both immutables and an initializer.
  *
  * This is for mixed usage scenarios where:
  * - The contract has both immutables AND mutable storage
- * - The initializer sets up storage
- * - Immutables are passed via capsule
+ * - The initializer sets up storage (counter)
+ * - Immutables are committed via the salt derivation
  *
- * Note: This deployment computes initialization_hash from the initializer args only,
- * NOT including the immutables. This means immutables verification will fail.
- * For production mixed usage, a custom deployment that includes
- * both initializer args AND immutables in the salt computation would be needed.
+ * Uses `deployWithImmutables` with initializer options so the contract instance
+ * includes the correct initializationHash while still deriving the salt from immutables.
  *
  * @param wallet - The wallet to deploy with
- * @param immutables - The immutables to pass via capsule
+ * @param immutables - The immutables to commit to the contract address
  * @param initialCounter - The initial counter value for storage
  * @returns The deployed contract and actual_salt for capsule creation
  */
@@ -102,27 +100,24 @@ export async function deployMixedUsageContract(
   immutables: Immutables,
   initialCounter: bigint,
 ): Promise<DeployImmutablesContractResult> {
-  const deployerAddress = (await wallet.getAccounts())[0]!.item;
-  const actualSalt = Fr.random();
-
-  // Deploy using standard method with initializer
-  const deployMethod = ImmutablesContractContract.deploy(
+  const result = await generic.deployWithImmutables(
     wallet,
-    initialCounter,
-  );
-
-  // Get the deployment address before sending to create capsule
-  const instance = await deployMethod.getInstance();
-  const capsule = generic.createImmutablesCapsule(
-    instance.address,
-    actualSalt,
+    ImmutablesContractContractArtifact,
     serializeImmutables(immutables),
+    {
+      initializer: "initialize",
+      initializerArgs: [initialCounter],
+    },
   );
 
-  // Deploy with capsule attached
-  const contract = (await deployMethod
-    .with({ capsules: [capsule] })
-    .send({ from: deployerAddress })) as ImmutablesContractContract;
+  const contract = ImmutablesContractContract.at(
+    result.instance.address,
+    wallet,
+  );
 
-  return { contract, actualSalt, isPublished: true };
+  return {
+    contract,
+    actualSalt: result.actualSalt,
+    isPublished: result.isPublished,
+  };
 }
