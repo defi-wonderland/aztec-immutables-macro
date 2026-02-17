@@ -114,7 +114,7 @@ pub contract ImmutablesContract {
     #[external("private")]
     #[noinitcheck]
     fn get_signing_key() -> pub (Field, Field) {
-        let immutables =Immutables::init(self.context);
+        let immutables = Immutables::init(self.context);
         (immutables.signing_key_x, immutables.signing_key_y)
     }
 
@@ -159,7 +159,7 @@ pub contract ImmutablesContract {
     #[external("private")]
     fn verify_immutables_and_increment() {
         // Load and verify immutables from capsule (this happens in private context)
-        let _immutables =Immutables::init(self.context);
+        let _immutables = Immutables::init(self.context);
 
         // Enqueue a public call to interact with storage
         // This demonstrates that after verifying immutables privately,

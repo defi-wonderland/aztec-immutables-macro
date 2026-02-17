@@ -97,7 +97,7 @@ pub contract SchnorrImmutablesAccount {
     #[contract_library_method]
     fn is_valid_impl(context: &mut PrivateContext, outer_hash: Field) -> bool {
         // Load and verify public key from immutables
-        let immutables =Immutables::init(context);
+        let immutables = Immutables::init(context);
         let public_key = immutables.public_key;
 
         // Load auth witness (signature)
@@ -134,7 +134,7 @@ pub contract SchnorrImmutablesAccount {
     #[external("utility")]
     unconstrained fn lookup_validity(consumer: AztecAddress, inner_hash: Field) -> bool {
         // Load immutables (unconstrained, no verification needed for simulation)
-        let immutables =Immutables::init_unconstrained(self.context);
+        let immutables = Immutables::init_unconstrained(self.context);
         let public_key = immutables.public_key;
 
         let message_hash = compute_authwit_message_hash(
@@ -174,7 +174,7 @@ pub contract SchnorrImmutablesAccount {
     /// This is a utility function to verify the immutables are loaded correctly.
     #[external("private")]
     fn get_signing_public_key() -> pub (Field, Field) {
-        let immutables =Immutables::init(self.context);
+        let immutables = Immutables::init(self.context);
         let public_key = immutables.public_key;
         (public_key.x, public_key.y)
     }
