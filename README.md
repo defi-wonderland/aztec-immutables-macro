@@ -207,7 +207,7 @@ A standard `schnorr_account_contract` using the traditional initializer pattern 
 ```
 src/
 ├── nr/
-│   ├── immutables/                              # The #[immutables] macro library
+│   ├── immutables/                               # The #[immutables] macro library
 │   │   └── src/macro.nr
 │   ├── schnorr_initializerless_account_contract/  # Initializerless Schnorr account
 │   │   └── src/
