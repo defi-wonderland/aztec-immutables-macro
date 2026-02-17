@@ -116,7 +116,7 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
   // Published deployment tests
   describe("Published", () => {
     it("should deploy account with signing key and read it back", async () => {
-      const { contract, actualSalt, signingPublicKey, isPublished } =
+      const { contract, actualSalt, signingPublicKey, isPublished, instance } =
         await registerInitializerlessAccount(wallet);
 
       expect(isPublished).toBe(true);
@@ -140,6 +140,14 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
 
       expect(result[0]).toEqual(signingPublicKey.x.toBigInt());
       expect(result[1]).toEqual(signingPublicKey.y.toBigInt());
+
+      // Verify pre-computed address matches deployed address (TS-Noir agreement)
+      const { address: preComputedAddress } =
+        await computeSchnorrAccountAddress(signingPublicKey, {
+          actualSalt,
+          publicKeys: instance.publicKeys,
+        });
+      expect(preComputedAddress.toString()).toBe(contract.address.toString());
     });
 
     it("should deploy with different secret keys and get different addresses", async () => {
@@ -197,6 +205,27 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
       );
 
       // This should fail because the capsule data doesn't match salt
+      await expect(
+        contract.methods
+          .get_signing_public_key()
+          .with({ capsules: [wrongCapsule] })
+          .simulate({ from: alice }),
+      ).rejects.toThrow("Immutables do not match contract salt");
+    });
+
+    it("should fail with wrong actualSalt in capsule", async () => {
+      const { contract, actualSalt, signingPublicKey } =
+        await registerInitializerlessAccount(wallet);
+
+      // Correct key but wrong actualSalt
+      const wrongActualSalt = new Fr(actualSalt.toBigInt() + 1n);
+      const wrongCapsule = createSigningKeyCapsule(
+        contract.address,
+        wrongActualSalt,
+        signingPublicKey,
+      );
+
+      // This should fail because the hash([wrongActualSalt, key]) won't match salt
       await expect(
         contract.methods
           .get_signing_public_key()
