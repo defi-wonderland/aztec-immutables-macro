@@ -146,6 +146,27 @@ describe("Immutables Contract - Initializerless Pattern", () => {
     });
   });
 
+  it.only("should read immutables from PXE store without manual capsule", async () => {
+    const { contract, actualSalt } = await deployImmutablesContract(
+      wallet,
+      IMMUTABLES_1,
+    );
+
+    // Persist immutables to PXE's CapsuleStore via store_immutables utility
+    const capsuleData = [actualSalt, ...serializeImmutables(IMMUTABLES_1)];
+    await contract.methods
+      .store_immutables(capsuleData)
+      .simulate({ from: alice });
+
+    // Read immutables WITHOUT a transient capsule -- data comes from persistent store
+    const result = await contract.methods
+      .get_signing_key()
+      .simulate({ from: alice });
+
+    expect(result[0]).toEqual(IMMUTABLES_1.signingKeyX.toBigInt());
+    expect(result[1]).toEqual(IMMUTABLES_1.signingKeyY.toBigInt());
+  });
+
   // Unpublished (PXE-only) deployment tests
   describe("Unpublished (PXE-only)", () => {
     it("should deploy unpublished contract and read immutables back", async () => {

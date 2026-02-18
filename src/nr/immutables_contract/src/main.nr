@@ -103,6 +103,13 @@ pub contract ImmutablesContract {
         pub signing_key_y: Field,
     }
 
+    /// Persists immutables data to the PXE's CapsuleStore.
+    /// Called once after deployment via `.simulate()` from TypeScript.
+    #[external("utility")]
+    unconstrained fn store_immutables(capsule_data: [Field; 3]) {
+        Immutables::store(self.context, capsule_data);
+    }
+
     /// Example private function that uses immutables.
     /// This demonstrates how to access immutables in a private function.
     /// The immutables are loaded and verified on each call.

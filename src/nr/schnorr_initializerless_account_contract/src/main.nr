@@ -59,6 +59,13 @@ pub contract SchnorrInitializerlessAccount {
         pub public_key: PublicKey,
     }
 
+    /// Persists immutables data to the PXE's CapsuleStore.
+    /// Called once after deployment via `.simulate()` from TypeScript.
+    #[external("utility")]
+    unconstrained fn store_immutables(capsule_data: [Field; 3]) {
+        Immutables::store(self.context, capsule_data);
+    }
+
     /// Account entrypoint - executes authenticated actions.
     ///
     /// @dev If you globally change the entrypoint signature, update account_entrypoint.ts

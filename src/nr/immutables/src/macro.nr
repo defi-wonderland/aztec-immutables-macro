@@ -172,6 +172,22 @@ pub comptime fn immutables(s: TypeDefinition) -> Quoted {
 
                 aztec::protocol::traits::Deserialize::deserialize(serialized_immutables)
             }
+
+            /// Persists immutables data to the PXE's CapsuleStore.
+            ///
+            /// Call this from a `#[external("utility")]` function in your contract,
+            /// then invoke it via `.simulate()` from TypeScript after deployment.
+            /// After this, `init()` and `init_unconstrained()` can read immutables
+            /// from the persistent store without transient capsules.
+            ///
+            /// ## Arguments
+            ///
+            /// * `context` - The UtilityContext (use in utility functions)
+            /// * `capsule_data` - Array of `[actual_salt, field_0, field_1, ...]`
+            pub unconstrained fn store(context: aztec::context::UtilityContext, capsule_data: [Field; 1 + $serialized_len]) {
+                let address = context.this_address();
+                aztec::oracle::capsules::store(address, $IMMUTABLES_SLOT, capsule_data);
+            }
         }
     }
 }
