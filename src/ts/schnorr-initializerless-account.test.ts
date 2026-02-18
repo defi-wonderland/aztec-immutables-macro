@@ -104,27 +104,22 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
   // Published deployment tests
   describe("Published", () => {
     it("should deploy account with signing key and read it back", async () => {
-      const { contract, actualSalt, signingPublicKey, isPublished, instance } =
+      const { contract, actualSalt, signingPublicKey, instance } =
         await registerInitializerlessAccount(wallet);
 
-      expect(isPublished).toBe(true);
       expect(contract.address).toBeDefined();
       expect(contract.address.toString()).not.toBe(
         AztecAddress.ZERO.toString(),
       );
 
-      const capsule = createSigningKeyCapsule(
-        contract.address,
-        actualSalt,
-        signingPublicKey,
-      );
+      // Verify instance IS published on-chain
+      const metadata = await wallet.getContractMetadata(contract.address);
+      expect(metadata.isContractPublished).toBe(true);
 
-      const result = await contract.methods
-        .get_signing_public_key()
-        .with({ capsules: [capsule] })
-        .simulate({
-          from: alice,
-        });
+      // Immutables loaded from persistent store (store_immutables called during deployment)
+      const result = await contract.methods.get_signing_public_key().simulate({
+        from: alice,
+      });
 
       expect(result[0]).toEqual(signingPublicKey.x.toBigInt());
       expect(result[1]).toEqual(signingPublicKey.y.toBigInt());
@@ -149,28 +144,16 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
       // Different secrets should produce different addresses
       expect(account1.address.toString()).not.toBe(account2.address.toString());
 
-      // Verify each contract returns its correct key
-      const capsule1 = createSigningKeyCapsule(
-        account1.address,
-        account1.actualSalt,
-        account1.signingPublicKey,
-      );
+      // Verify each contract returns its correct key (loaded from persistent store)
       const result1 = await account1.contract.methods
         .get_signing_public_key()
-        .with({ capsules: [capsule1] })
         .simulate({ from: alice });
 
       expect(result1[0]).toEqual(account1.signingPublicKey.x.toBigInt());
       expect(result1[1]).toEqual(account1.signingPublicKey.y.toBigInt());
 
-      const capsule2 = createSigningKeyCapsule(
-        account2.address,
-        account2.actualSalt,
-        account2.signingPublicKey,
-      );
       const result2 = await account2.contract.methods
         .get_signing_public_key()
-        .with({ capsules: [capsule2] })
         .simulate({ from: alice });
 
       expect(result2[0]).toEqual(account2.signingPublicKey.x.toBigInt());
@@ -226,29 +209,24 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
   // Unpublished (PXE-only) deployment tests
   describe("Unpublished (PXE-only)", () => {
     it("should deploy unpublished account and read signing key back", async () => {
-      const { contract, actualSalt, signingPublicKey, isPublished } =
+      const { contract, signingPublicKey } =
         await registerInitializerlessAccount(wallet, {
           skipInstancePublication: true,
         });
 
-      expect(isPublished).toBe(false);
       expect(contract.address).toBeDefined();
       expect(contract.address.toString()).not.toBe(
         AztecAddress.ZERO.toString(),
       );
 
-      const capsule = createSigningKeyCapsule(
-        contract.address,
-        actualSalt,
-        signingPublicKey,
-      );
+      // Verify instance is NOT published on-chain
+      const metadata = await wallet.getContractMetadata(contract.address);
+      expect(metadata.isContractPublished).toBe(false);
 
-      const result = await contract.methods
-        .get_signing_public_key()
-        .with({ capsules: [capsule] })
-        .simulate({
-          from: alice,
-        });
+      // Immutables loaded from persistent store (store_immutables called during deployment)
+      const result = await contract.methods.get_signing_public_key().simulate({
+        from: alice,
+      });
 
       expect(result[0]).toEqual(signingPublicKey.x.toBigInt());
       expect(result[1]).toEqual(signingPublicKey.y.toBigInt());
@@ -267,28 +245,16 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
       // Different secrets should produce different addresses
       expect(account1.address.toString()).not.toBe(account2.address.toString());
 
-      // Verify each contract returns its correct key
-      const capsule1 = createSigningKeyCapsule(
-        account1.address,
-        account1.actualSalt,
-        account1.signingPublicKey,
-      );
+      // Verify each contract returns its correct key (loaded from persistent store)
       const result1 = await account1.contract.methods
         .get_signing_public_key()
-        .with({ capsules: [capsule1] })
         .simulate({ from: alice });
 
       expect(result1[0]).toEqual(account1.signingPublicKey.x.toBigInt());
       expect(result1[1]).toEqual(account1.signingPublicKey.y.toBigInt());
 
-      const capsule2 = createSigningKeyCapsule(
-        account2.address,
-        account2.actualSalt,
-        account2.signingPublicKey,
-      );
       const result2 = await account2.contract.methods
         .get_signing_public_key()
-        .with({ capsules: [capsule2] })
         .simulate({ from: alice });
 
       expect(result2[0]).toEqual(account2.signingPublicKey.x.toBigInt());

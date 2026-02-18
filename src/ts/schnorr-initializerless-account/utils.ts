@@ -35,7 +35,6 @@ import {
 import {
   SchnorrInitializerlessAccountContract as SchnorrInitializerlessAccountContractClass,
   serializeSigningKey,
-  createSigningKeyCapsule,
   type SigningPublicKey,
 } from "./index.js";
 import { deployWithImmutables } from "../immutables/utils.js";
@@ -55,8 +54,6 @@ export interface DeployedSchnorrInitializerlessAccount {
   instance: import("@aztec/stdlib/contract").ContractInstanceWithAddress;
   /** The random salt stored in capsule, needed for creating capsules later */
   actualSalt: Fr;
-  /** Whether the contract instance was published on-chain */
-  isPublished: boolean;
 }
 
 /**
@@ -168,9 +165,5 @@ export async function registerInitializerlessAccount(
     signingPublicKey,
     instance: instanceWithAddress,
     actualSalt: deployResult.actualSalt,
-    isPublished: deployResult.isPublished,
   };
 }
-
-// Re-export createSigningKeyCapsule from index for convenience
-export { createSigningKeyCapsule } from "./index.js";

@@ -209,8 +209,6 @@ export interface DeployWithImmutablesResult {
   instance: ContractInstanceWithAddress;
   /** The random salt stored in capsule, needed for creating capsules later */
   actualSalt: Fr;
-  /** Whether the contract instance was published on-chain */
-  isPublished: boolean;
 }
 
 /**
@@ -258,7 +256,21 @@ export async function deployWithImmutables(
   // Register the contract with the wallet (PXE)
   await wallet.registerContract(instance, artifact, options?.secretKey);
 
-  let isPublished = false;
+  // Persist immutables to PXE's CapsuleStore via the store_immutables utility function.
+  // This makes immutables available for all subsequent calls without transient capsules.
+  const capsuleData = [actualSalt, ...serializedImmutables];
+  const storeImmutablesAbi = artifact.functions.find(
+    (f) => f.name === "store_immutables",
+  );
+  if (storeImmutablesAbi) {
+    const storeCall = new ContractFunctionInteraction(
+      wallet,
+      instance.address,
+      storeImmutablesAbi,
+      [capsuleData],
+    );
+    await storeCall.simulate({ from: deployerAddress });
+  }
 
   if (!options?.skipInstancePublication) {
     // Create capsule with [actual_salt, ...serialized_immutables]
@@ -312,9 +324,7 @@ export async function deployWithImmutables(
     // Send as a single merged transaction
     const merged = mergeExecutionPayloads(payloads);
     await wallet.sendTx(merged, { from: deployerAddress });
-
-    isPublished = true;
   }
 
-  return { instance, actualSalt, isPublished };
+  return { instance, actualSalt };
 }

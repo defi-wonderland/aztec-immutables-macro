@@ -6,8 +6,8 @@ import { type AztecLMDBStoreV2 } from "@aztec/kv-store/lmdb-v2";
 import {
   deployImmutablesContract,
   deployMixedUsageContract,
-  createImmutablesCapsule,
   serializeImmutables,
+  createImmutablesCapsule,
   type Immutables,
   computeContractSalt,
 } from "./immutables-contract/utils.js";
@@ -95,10 +95,8 @@ describe("Immutables Contract - Initializerless Pattern", () => {
   // Published deployment tests
   describe("Published", () => {
     it("should deploy contract with immutables and read them back", async () => {
-      const { contract, actualSalt, isPublished } =
-        await deployImmutablesContract(wallet, IMMUTABLES_1);
+      const { contract } = await deployImmutablesContract(wallet, IMMUTABLES_1);
 
-      expect(isPublished).toBe(true);
       expect(contract.address).toBeDefined();
       expect(contract.address.toString()).not.toBe(
         AztecAddress.ZERO.toString(),
@@ -108,18 +106,10 @@ describe("Immutables Contract - Initializerless Pattern", () => {
       const metadata = await wallet.getContractMetadata(contract.address);
       expect(metadata.isContractPublished).toBe(true);
 
-      const capsule = createImmutablesCapsule(
-        contract.address,
-        actualSalt,
-        serializeImmutables(IMMUTABLES_1),
-      );
-
-      const result = await contract.methods
-        .get_signing_key()
-        .with({ capsules: [capsule] })
-        .simulate({
-          from: alice,
-        });
+      // Immutables loaded from persistent store (store_immutables called during deployment)
+      const result = await contract.methods.get_signing_key().simulate({
+        from: alice,
+      });
 
       expect(result[0]).toEqual(IMMUTABLES_1.signingKeyX.toBigInt());
       expect(result[1]).toEqual(IMMUTABLES_1.signingKeyY.toBigInt());
@@ -147,18 +137,10 @@ describe("Immutables Contract - Initializerless Pattern", () => {
   });
 
   it("should read immutables from PXE store without manual capsule", async () => {
-    const { contract, actualSalt } = await deployImmutablesContract(
-      wallet,
-      IMMUTABLES_1,
-    );
-
-    // Persist immutables to PXE's CapsuleStore via store_immutables utility
-    const capsuleData = [actualSalt, ...serializeImmutables(IMMUTABLES_1)];
-    await contract.methods
-      .store_immutables(capsuleData)
-      .simulate({ from: alice });
+    const { contract } = await deployImmutablesContract(wallet, IMMUTABLES_1);
 
     // Read immutables WITHOUT a transient capsule -- data comes from persistent store
+    // (store_immutables is called automatically during deployment)
     const result = await contract.methods
       .get_signing_key()
       .simulate({ from: alice });
@@ -170,12 +152,14 @@ describe("Immutables Contract - Initializerless Pattern", () => {
   // Unpublished (PXE-only) deployment tests
   describe("Unpublished (PXE-only)", () => {
     it("should deploy unpublished contract and read immutables back", async () => {
-      const { contract, actualSalt, isPublished } =
-        await deployImmutablesContract(wallet, IMMUTABLES_1, {
+      const { contract } = await deployImmutablesContract(
+        wallet,
+        IMMUTABLES_1,
+        {
           skipInstancePublication: true,
-        });
+        },
+      );
 
-      expect(isPublished).toBe(false);
       expect(contract.address).toBeDefined();
       expect(contract.address.toString()).not.toBe(
         AztecAddress.ZERO.toString(),
@@ -185,18 +169,10 @@ describe("Immutables Contract - Initializerless Pattern", () => {
       const metadata = await wallet.getContractMetadata(contract.address);
       expect(metadata.isContractPublished).toBe(false);
 
-      const capsule = createImmutablesCapsule(
-        contract.address,
-        actualSalt,
-        serializeImmutables(IMMUTABLES_1),
-      );
-
-      const result = await contract.methods
-        .get_signing_key()
-        .with({ capsules: [capsule] })
-        .simulate({
-          from: alice,
-        });
+      // Immutables loaded from persistent store (store_immutables called during deployment)
+      const result = await contract.methods.get_signing_key().simulate({
+        from: alice,
+      });
 
       expect(result[0]).toEqual(IMMUTABLES_1.signingKeyX.toBigInt());
       expect(result[1]).toEqual(IMMUTABLES_1.signingKeyY.toBigInt());
@@ -258,7 +234,7 @@ describe("Immutables Contract - Mixed Usage (Immutables + Storage)", () => {
   });
 
   it("should deploy mixed usage and read immutables back", async () => {
-    const { contract, actualSalt } = await deployMixedUsageContract(
+    const { contract } = await deployMixedUsageContract(
       wallet,
       IMMUTABLES_1,
       INITIAL_COUNTER,
@@ -270,16 +246,9 @@ describe("Immutables Contract - Mixed Usage (Immutables + Storage)", () => {
     });
     expect(counter).toEqual(INITIAL_COUNTER);
 
-    // Immutables verification now succeeds because salt is derived from immutables
-    const capsule = createImmutablesCapsule(
-      contract.address,
-      actualSalt,
-      serializeImmutables(IMMUTABLES_1),
-    );
-
+    // Immutables loaded from persistent store (store_immutables called during deployment)
     const result = await contract.methods
       .get_signing_key()
-      .with({ capsules: [capsule] })
       .simulate({ from: alice });
 
     expect(result[0]).toEqual(IMMUTABLES_1.signingKeyX.toBigInt());
@@ -287,25 +256,17 @@ describe("Immutables Contract - Mixed Usage (Immutables + Storage)", () => {
   });
 
   it("should verify immutables and increment storage", async () => {
-    const { contract, actualSalt } = await deployMixedUsageContract(
+    const { contract } = await deployMixedUsageContract(
       wallet,
       IMMUTABLES_1,
       INITIAL_COUNTER,
     );
 
-    // Create capsule for the call
-    const capsule = createImmutablesCapsule(
-      contract.address,
-      actualSalt,
-      serializeImmutables(IMMUTABLES_1),
-    );
-
     // The combined private+public function should succeed:
-    // 1. Verifies immutables in private context
+    // 1. Verifies immutables in private context (loaded from persistent store)
     // 2. Enqueues a public call to increment storage
     await contract.methods
       .verify_immutables_and_increment()
-      .with({ capsules: [capsule] })
       .send({ from: alice });
 
     // Counter should be incremented

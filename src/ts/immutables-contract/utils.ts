@@ -36,8 +36,6 @@ export interface DeployImmutablesContractResult {
   contract: ImmutablesContractContract;
   /** The random salt stored in capsule, needed for creating capsules later */
   actualSalt: Fr;
-  /** Whether the contract instance was published on-chain */
-  isPublished: boolean;
 }
 
 /**
@@ -75,7 +73,6 @@ export async function deployImmutablesContract(
   return {
     contract,
     actualSalt: result.actualSalt,
-    isPublished: result.isPublished,
   };
 }
 
@@ -118,6 +115,5 @@ export async function deployMixedUsageContract(
   return {
     contract,
     actualSalt: result.actualSalt,
-    isPublished: result.isPublished,
   };
 }

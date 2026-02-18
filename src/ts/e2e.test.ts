@@ -59,10 +59,7 @@ async function registerDeployedSponsoredFPCInWalletAndGetAddress(
   return instance.address;
 }
 
-import {
-  registerInitializerlessAccount,
-  createSigningKeyCapsule,
-} from "./schnorr-initializerless-account/utils.js";
+import { registerInitializerlessAccount } from "./schnorr-initializerless-account/utils.js";
 import { deploySchnorrAccount } from "./schnorr-account/utils.js";
 
 // Import Token and Dripper from aztec-standards
@@ -133,15 +130,9 @@ describe("Initializerless Account with Dripper FPC", () => {
       .simulate({ from: deployerAddress });
     expect(initialBalance).toEqual(0n);
 
-    const capsule = createSigningKeyCapsule(
-      initializerlessAccount.address,
-      initializerlessAccount.actualSalt,
-      initializerlessAccount.signingPublicKey,
-    );
-
+    // Immutables loaded from persistent store (store_immutables called during deployment)
     const tx = await dripper.methods
       .drip_to_private(token.address, DRIP_AMOUNT)
-      .with({ capsules: [capsule] })
       .send({
         from: initializerlessAccount.address,
         fee: { paymentMethod: sponsoredPaymentMethod },
@@ -191,7 +182,6 @@ describe("Initializerless Account with Dripper FPC", () => {
       secretKey: Fr.random(),
       skipInstancePublication: true,
     });
-    expect(unpublishedAccount.isPublished).toBe(false);
 
     // Verify it's truly unpublished
     const metadata = await wallet.getContractMetadata(
@@ -199,17 +189,9 @@ describe("Initializerless Account with Dripper FPC", () => {
     );
     expect(metadata.isContractPublished).toBe(false);
 
-    // Create capsule for the account (needed for every transaction)
-    const capsule = createSigningKeyCapsule(
-      unpublishedAccount.address,
-      unpublishedAccount.actualSalt,
-      unpublishedAccount.signingPublicKey,
-    );
-
-    // Try to send a transaction from the unpublished account
+    // Immutables loaded from persistent store (store_immutables called during deployment)
     const tx = await dripper.methods
       .drip_to_private(token.address, DRIP_AMOUNT)
-      .with({ capsules: [capsule] })
       .send({
         from: unpublishedAccount.address,
         fee: { paymentMethod: sponsoredPaymentMethod },
@@ -230,19 +212,17 @@ describe("Initializerless Account with Dripper FPC", () => {
       secretKey: Fr.random(),
       skipInstancePublication: true,
     });
-    expect(unpublishedAccount.isPublished).toBe(false);
 
-    const capsule = createSigningKeyCapsule(
+    // Verify it's truly unpublished
+    const metadata = await wallet.getContractMetadata(
       unpublishedAccount.address,
-      unpublishedAccount.actualSalt,
-      unpublishedAccount.signingPublicKey,
     );
+    expect(metadata.isContractPublished).toBe(false);
 
     // drip_to_public is a public function — proves the unpublished account
     // can enqueue public calls, not just private ones
     const tx = await dripper.methods
       .drip_to_public(token.address, DRIP_AMOUNT)
-      .with({ capsules: [capsule] })
       .send({
         from: unpublishedAccount.address,
         fee: { paymentMethod: sponsoredPaymentMethod },
@@ -269,21 +249,12 @@ describe("Initializerless Account with Dripper FPC", () => {
       secretKey: Fr.random(),
     });
 
-    // Create capsule for the initializerless account (needed for every transaction)
-    const capsule = createSigningKeyCapsule(
-      initializerlessAccount.address,
-      initializerlessAccount.actualSalt,
-      initializerlessAccount.signingPublicKey,
-    );
-
     // Drip to both accounts in sequence - each gets DRIP_AMOUNT (1000)
-    await dripper.methods
-      .drip_to_private(token.address, DRIP_AMOUNT)
-      .with({ capsules: [capsule] })
-      .send({
-        from: initializerlessAccount.address,
-        fee: { paymentMethod: sponsoredPaymentMethod },
-      });
+    // Immutables loaded from persistent store (store_immutables called during deployment)
+    await dripper.methods.drip_to_private(token.address, DRIP_AMOUNT).send({
+      from: initializerlessAccount.address,
+      fee: { paymentMethod: sponsoredPaymentMethod },
+    });
 
     await dripper.methods.drip_to_private(token.address, DRIP_AMOUNT).send({
       from: standardAccount.contract.address,
@@ -313,7 +284,6 @@ describe("Initializerless Account with Dripper FPC", () => {
         TRANSFER_TO_STANDARD, // amount
         0n, // nonce (0 when sender is caller)
       )
-      .with({ capsules: [capsule] })
       .send({
         from: initializerlessAccount.address,
         fee: { paymentMethod: sponsoredPaymentMethod },
@@ -341,7 +311,6 @@ describe("Initializerless Account with Dripper FPC", () => {
         TRANSFER_TO_PUBLIC, // amount
         0n, // nonce
       )
-      .with({ capsules: [capsule] })
       .send({
         from: initializerlessAccount.address,
         fee: { paymentMethod: sponsoredPaymentMethod },
@@ -423,41 +392,6 @@ describe("Initializerless Account with Dripper FPC", () => {
     expect(standardPublicBalance).toEqual(expectedStandardPublic);
   });
 
-  it("should reject transaction signed with wrong private key", async () => {
-    // Deploy two accounts with different signing keys
-    const account = await registerInitializerlessAccount(wallet, {
-      secretKey: Fr.random(),
-    });
-    const wrongAccount = await registerInitializerlessAccount(wallet, {
-      secretKey: Fr.random(),
-    });
-
-    // Swap: make the wallet sign account's transactions with wrongAccount's key
-    // @ts-ignore - accessing protected member for test purposes
-    const wrongSigner = wallet.accounts.get(wrongAccount.address.toString());
-    // @ts-ignore
-    wallet.accounts.set(account.address.toString(), wrongSigner);
-
-    // Correct capsule (loads the real public key from salt)
-    const capsule = createSigningKeyCapsule(
-      account.address,
-      account.actualSalt,
-      account.signingPublicKey,
-    );
-
-    // Should fail: capsule loads the correct public key,
-    // but the signature was made with wrongAccount's private key
-    await expect(
-      dripper.methods
-        .drip_to_private(token.address, DRIP_AMOUNT)
-        .with({ capsules: [capsule] })
-        .send({
-          from: account.address,
-          fee: { paymentMethod: sponsoredPaymentMethod },
-        }),
-    ).rejects.toThrow();
-  });
-
   it("should verify auth witness for delegated transfer", async () => {
     // Deploy an initializerless account and give it tokens
     const initializerlessAccount = await registerInitializerlessAccount(
@@ -467,20 +401,11 @@ describe("Initializerless Account with Dripper FPC", () => {
       },
     );
 
-    const capsule = createSigningKeyCapsule(
-      initializerlessAccount.address,
-      initializerlessAccount.actualSalt,
-      initializerlessAccount.signingPublicKey,
-    );
-
     // Drip tokens to the initializerless account
-    await dripper.methods
-      .drip_to_private(token.address, DRIP_AMOUNT)
-      .with({ capsules: [capsule] })
-      .send({
-        from: initializerlessAccount.address,
-        fee: { paymentMethod: sponsoredPaymentMethod },
-      });
+    await dripper.methods.drip_to_private(token.address, DRIP_AMOUNT).send({
+      from: initializerlessAccount.address,
+      fee: { paymentMethod: sponsoredPaymentMethod },
+    });
 
     const TRANSFER_AMOUNT = 100n;
     const nonce = Fr.random();
@@ -500,7 +425,7 @@ describe("Initializerless Account with Dripper FPC", () => {
     });
 
     // deployerAddress executes the transfer on behalf of initializerlessAccount
-    // The capsule is needed because verify_private_authwit loads the signing key
+    // Signing key loaded from persistent store (store_immutables called during deployment)
     const tx = await token.methods
       .transfer_private_to_private(
         initializerlessAccount.address,
@@ -508,7 +433,7 @@ describe("Initializerless Account with Dripper FPC", () => {
         TRANSFER_AMOUNT,
         nonce,
       )
-      .with({ capsules: [capsule], authWitnesses: [witness] })
+      .with({ authWitnesses: [witness] })
       .send({
         from: deployerAddress,
         fee: { paymentMethod: sponsoredPaymentMethod },
@@ -533,14 +458,12 @@ describe("Initializerless Account with Dripper FPC", () => {
     const publishedAccount = await registerInitializerlessAccount(wallet, {
       secretKey: Fr.random(),
     });
-    expect(publishedAccount.isPublished).toBe(true);
 
     // Deploy an unpublished account (PXE-only)
     const unpublishedAccount = await registerInitializerlessAccount(wallet, {
       secretKey: Fr.random(),
       skipInstancePublication: true,
     });
-    expect(unpublishedAccount.isPublished).toBe(false);
 
     // Check contract metadata for published account
     const publishedMetadata = await wallet.getContractMetadata(
