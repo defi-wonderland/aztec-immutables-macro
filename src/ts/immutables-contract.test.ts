@@ -136,6 +136,52 @@ describe("Immutables Contract - Initializerless Pattern", () => {
     });
   });
 
+  it("should reject store_immutables with wrong data", async () => {
+    const { contract, actualSalt } = await deployImmutablesContract(
+      wallet,
+      IMMUTABLES_1,
+    );
+
+    // Try to store wrong immutables (IMMUTABLES_2 instead of IMMUTABLES_1)
+    // The Noir store() function validates poseidon2_hash(capsule_data) == instance.salt
+    const wrongCapsuleData = [actualSalt, ...serializeImmutables(IMMUTABLES_2)];
+
+    await expect(
+      contract.methods
+        .store_immutables(wrongCapsuleData)
+        .simulate({ from: alice }),
+    ).rejects.toThrow(
+      "Immutables data does not match contract salt, refusing to store",
+    );
+  });
+
+  it("should allow re-storing correct immutables (PXE recovery)", async () => {
+    const { contract, actualSalt } = await deployImmutablesContract(
+      wallet,
+      IMMUTABLES_1,
+    );
+
+    // Verify immutables are readable (stored during deployment)
+    const result1 = await contract.methods
+      .get_signing_key()
+      .simulate({ from: alice });
+    expect(result1[0]).toEqual(IMMUTABLES_1.signingKeyX.toBigInt());
+    expect(result1[1]).toEqual(IMMUTABLES_1.signingKeyY.toBigInt());
+
+    // Re-store immutables (simulating PXE recovery after data loss)
+    const capsuleData = [actualSalt, ...serializeImmutables(IMMUTABLES_1)];
+    await contract.methods
+      .store_immutables(capsuleData)
+      .simulate({ from: alice });
+
+    // Verify immutables are still readable after re-store
+    const result2 = await contract.methods
+      .get_signing_key()
+      .simulate({ from: alice });
+    expect(result2[0]).toEqual(IMMUTABLES_1.signingKeyX.toBigInt());
+    expect(result2[1]).toEqual(IMMUTABLES_1.signingKeyY.toBigInt());
+  });
+
   it("should read immutables from PXE store without manual capsule", async () => {
     const { contract } = await deployImmutablesContract(wallet, IMMUTABLES_1);
 

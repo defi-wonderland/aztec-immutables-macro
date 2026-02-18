@@ -173,7 +173,11 @@ pub comptime fn immutables(s: TypeDefinition) -> Quoted {
                 aztec::protocol::traits::Deserialize::deserialize(serialized_immutables)
             }
 
-            /// Persists immutables data to the PXE's CapsuleStore.
+            /// Persists immutables data to the PXE's CapsuleStore after validation.
+            ///
+            /// Validates that `poseidon2_hash(capsule_data) == instance.salt` before
+            /// storing, preventing corrupt data from being persisted. This protects
+            /// `init_unconstrained()` which skips verification at read time.
             ///
             /// Call this from a `#[external("utility")]` function in your contract,
             /// then invoke it via `.simulate()` from TypeScript after deployment.
@@ -190,8 +194,22 @@ pub comptime fn immutables(s: TypeDefinition) -> Quoted {
             ///
             /// * `context` - The UtilityContext (use in utility functions)
             /// * `capsule_data` - Array of `[actual_salt, field_0, field_1, ...]`
+            ///
+            /// ## Panics
+            ///
+            /// - "Immutables data does not match contract salt, refusing to store" - capsule_data is invalid
             pub unconstrained fn store(context: aztec::context::UtilityContext, capsule_data: [Field; 1 + $serialized_len]) {
                 let address = context.this_address();
+
+                // Validate: hash(capsule_data) must match instance.salt before storing
+                let salt = aztec::protocol::hash::poseidon2_hash(capsule_data);
+                let instance = aztec::oracle::get_contract_instance::get_contract_instance(address);
+                assert_eq(
+                    salt,
+                    instance.salt,
+                    "Immutables data does not match contract salt, refusing to store",
+                );
+
                 aztec::oracle::capsules::store(address, $IMMUTABLES_SLOT, capsule_data);
             }
         }

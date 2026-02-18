@@ -78,8 +78,6 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
   });
 
   it("should compute correct contract salt", async () => {
-    const actualSalt = new Fr(12345n);
-
     const salt = computeContractSalt(ACTUAL_SALT_1, SIGNING_KEY_1);
 
     // Salt should be non-zero
@@ -90,7 +88,7 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
     expect(salt.toBigInt()).toBe(salt2.toBigInt());
 
     // Different key should produce different salt
-    const differentSalt = computeContractSalt(actualSalt, SIGNING_KEY_2);
+    const differentSalt = computeContractSalt(ACTUAL_SALT_1, SIGNING_KEY_2);
     expect(salt.toBigInt()).not.toBe(differentSalt.toBigInt());
 
     // Different actualSalt should produce different salt
