@@ -146,7 +146,7 @@ describe("Immutables Contract - Initializerless Pattern", () => {
     });
   });
 
-  it.only("should read immutables from PXE store without manual capsule", async () => {
+  it("should read immutables from PXE store without manual capsule", async () => {
     const { contract, actualSalt } = await deployImmutablesContract(
       wallet,
       IMMUTABLES_1,

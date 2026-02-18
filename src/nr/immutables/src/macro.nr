@@ -180,6 +180,12 @@ pub comptime fn immutables(s: TypeDefinition) -> Quoted {
             /// After this, `init()` and `init_unconstrained()` can read immutables
             /// from the persistent store without transient capsules.
             ///
+            /// Note: capsule_data is passed as a parameter instead of using capsules::load
+            /// because the PXE's utility simulation path does not forward transient capsules
+            /// to the UtilityExecutionOracle (hardcoded [] at contract_function_simulator.ts).
+            /// See: https://github.com/AztecProtocol/aztec-packages/blob/4047b6e/yarn-project/pxe/src/contract_function_simulator/contract_function_simulator.ts#L275
+            /// TODO: Once that changes, switch to capsules::load here and remove the parameter.
+            ///
             /// ## Arguments
             ///
             /// * `context` - The UtilityContext (use in utility functions)
