@@ -12,6 +12,7 @@ export {
   IMMUTABLES_SLOT,
   createImmutablesCapsule,
   computeContractSalt,
+  getImmutablesLayout,
 } from "../immutables/utils.js";
 
 /**

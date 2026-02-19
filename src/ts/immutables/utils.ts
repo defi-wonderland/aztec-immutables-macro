@@ -39,7 +39,14 @@ import {
   getContractInstanceFromInstantiationParams,
 } from "@aztec/stdlib/contract";
 import { getInitializer } from "@aztec/stdlib/abi";
-import type { ContractArtifact, FunctionAbi } from "@aztec/stdlib/abi";
+import type {
+  ContractArtifact,
+  FunctionAbi,
+  StructValue,
+  IntegerValue,
+  TypedStructFieldValue,
+  BasicValue,
+} from "@aztec/stdlib/abi";
 import type {
   ContractInstance,
   ContractInstanceWithAddress,
@@ -58,6 +65,95 @@ import { ContractFunctionInteraction } from "@aztec/aztec.js/contracts";
 export const IMMUTABLES_SLOT = new Fr(
   0x1a0e563e6a2087002308173ed42dec43b9543a3684de63d6be9a958c0eaf5c45n,
 );
+
+// ---------------------------------------------------------------------------
+// Artifact introspection
+// ---------------------------------------------------------------------------
+
+/**
+ * A single immutable field's layout entry.
+ */
+export interface ImmutableFieldLayout {
+  /** Index of this field in the serialized Fr[] array */
+  index: number;
+}
+
+/**
+ * Parsed immutables layout from a contract artifact.
+ */
+export interface ImmutablesLayout {
+  /** Total number of serialized Fr elements (accounts for nested struct flattening) */
+  serializedLen: number;
+  /** Map of field names to their layout entries */
+  fields: Record<string, ImmutableFieldLayout>;
+}
+
+/**
+ * Parses the immutables layout from a contract artifact.
+ *
+ * The `#[immutables]` Noir macro emits an `#[abi(immutables)]` global that the compiler
+ * collects into `outputs.globals.immutables` in the artifact JSON. This function parses
+ * that structure into a typed layout with field names, serialization indices, and total
+ * serialized length.
+ *
+ * Mirrors `getStorageLayout()` from aztec-packages (stdlib/src/abi/contract_artifact.ts).
+ *
+ * @param artifact - The contract artifact to extract immutables layout from
+ * @returns The parsed layout, or null if the contract has no immutables
+ */
+export function getImmutablesLayout(
+  artifact: ContractArtifact,
+): ImmutablesLayout | null {
+  const immutablesExports = artifact.outputs.globals.immutables
+    ? (artifact.outputs.globals.immutables as StructValue[])
+    : [];
+
+  // Find the entry matching this contract (imported contracts may leak their layout)
+  const layoutForContract = immutablesExports.find((entry) => {
+    const contractNameField = entry.fields.find(
+      (field) => field.name === "contract_name",
+    )?.value as BasicValue<"string", string> | undefined;
+    return contractNameField?.value === artifact.name;
+  });
+
+  if (!layoutForContract) {
+    return null;
+  }
+
+  // Extract serialized_len
+  const serializedLenValue = layoutForContract.fields.find(
+    (field) => field.name === "serialized_len",
+  )?.value as IntegerValue | undefined;
+  const serializedLen = serializedLenValue
+    ? parseInt(serializedLenValue.value, 16)
+    : 0;
+
+  // Extract the `fields` struct
+  const fieldsStruct = layoutForContract.fields.find(
+    (field) => field.name === "fields",
+  ) as TypedStructFieldValue<StructValue> | undefined;
+
+  if (!fieldsStruct) {
+    return { serializedLen, fields: {} };
+  }
+
+  const layoutFields = fieldsStruct.value
+    .fields as TypedStructFieldValue<StructValue>[];
+
+  const fields = layoutFields.reduce(
+    (acc: Record<string, ImmutableFieldLayout>, field) => {
+      const indexValue = field.value.fields.find((f) => f.name === "index")
+        ?.value as IntegerValue;
+      acc[field.name] = {
+        index: parseInt(indexValue.value, 16),
+      };
+      return acc;
+    },
+    {},
+  );
+
+  return { serializedLen, fields };
+}
 
 // ---------------------------------------------------------------------------
 // Low-level building blocks
@@ -255,6 +351,16 @@ export async function deployWithImmutables(
 
   // Register the contract with the wallet (PXE)
   await wallet.registerContract(instance, artifact, options?.secretKey);
+
+  // Validate serialized immutables against the #[abi(immutables)] layout in the artifact.
+  // Uses serialized_len (not field count) since nested structs flatten to multiple Fr elements.
+  const layout = getImmutablesLayout(artifact);
+  if (layout && serializedImmutables.length !== layout.serializedLen) {
+    const fieldNames = Object.keys(layout.fields).join(", ");
+    throw new Error(
+      `Immutables serialized length mismatch: expected ${layout.serializedLen} Fr elements for fields (${fieldNames}), got ${serializedImmutables.length}`,
+    );
+  }
 
   // Persist immutables to PXE's CapsuleStore via the store_immutables utility function.
   // This makes immutables available for all subsequent calls without transient capsules.
