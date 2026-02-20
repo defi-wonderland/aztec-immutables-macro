@@ -1,7 +1,7 @@
 {
-  "name": "aztec-boilerplate",
+  "name": "immutables-macro",
   "version": "4.0.0-devnet.1-patch.0",
-  "repository": "https://github.com/defi-wonderland/initializerless-constants.git",
+  "repository": "https://github.com/defi-wonderland/immutables-macro.git",
   "author": "Wonderland",
   "license": "MIT",
   "type": "module",
@@ -14,7 +14,7 @@
     "test:nr": "aztec test",
     "lint:prettier": "prettier '**/*.{js,ts}' --write",
     "ccc": "yarn clean && yarn compile && yarn codegen && yarn build-aztec-standards",
-    "build-aztec-standards": "npx tsx scripts/build-aztec-standards.ts chore/v4",
+    "build-aztec-standards": "npx tsx scripts/build-aztec-standards.ts dev",
     "benchmark": "aztec-benchmark --suffix _base",
     "prepare": "husky"
   },

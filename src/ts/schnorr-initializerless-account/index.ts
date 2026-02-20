@@ -29,20 +29,30 @@ import {
   type Account,
   type AccountContract,
   type AuthWitnessProvider,
+  AccountWithSecretKey,
   BaseAccount,
 } from "@aztec/aztec.js/account";
 import type { ContractArtifact } from "@aztec/stdlib/abi";
-import type { CompleteAddress } from "@aztec/stdlib/contract";
+import { CompleteAddress } from "@aztec/stdlib/contract";
+import type { ContractInstanceWithAddress } from "@aztec/stdlib/contract";
 import { DefaultAccountEntrypoint } from "@aztec/entrypoints/account";
 import { Schnorr } from "@aztec/foundation/crypto/schnorr";
 import { Fr, GrumpkinScalar } from "@aztec/aztec.js/fields";
 import { AuthWitness } from "@aztec/stdlib/auth-witness";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { Capsule } from "@aztec/stdlib/tx";
+import type { Wallet } from "@aztec/aztec.js/wallet";
+import { deriveKeys, deriveSigningKey } from "@aztec/stdlib/keys";
 
-import { SchnorrInitializerlessAccountContractArtifact } from "../../artifacts/SchnorrInitializerlessAccount.js";
+import {
+  SchnorrInitializerlessAccountContract as SchnorrInitializerlessAccountContractHandle,
+  SchnorrInitializerlessAccountContractArtifact,
+} from "../../artifacts/SchnorrInitializerlessAccount.js";
 import * as generic from "../immutables/utils.js";
-import type { ImmutablesInstanceOptions } from "../immutables/utils.js";
+import type {
+  ImmutablesInstanceOptions,
+  DeployWithImmutablesOptions,
+} from "../immutables/utils.js";
 
 // Re-export IMMUTABLES_SLOT from generic
 export { IMMUTABLES_SLOT } from "../immutables/utils.js";
@@ -64,8 +74,11 @@ export interface SigningPublicKey {
  */
 export interface ComputeSchnorrAccountAddressResult {
   address: AztecAddress;
-  /** The random salt stored in capsule, needed for creating capsules later */
-  actualSalt: Fr;
+  /**
+   * The full capsule data: `[actualSalt, ...serializedImmutables]`.
+   * Persist this for backup — needed to re-store immutables on a new PXE.
+   */
+  capsuleData: Fr[];
 }
 
 // ---------------------------------------------------------------------------
@@ -73,10 +86,26 @@ export interface ComputeSchnorrAccountAddressResult {
 // ---------------------------------------------------------------------------
 
 /**
- * Serializes the signing public key to Fr array (matches Noir serialization)
+ * Serializes the signing public key to Fr[] using the artifact's `#[abi(immutables)]` layout.
+ *
+ * The Noir struct has a nested `PublicKey` type:
+ * ```noir
+ * #[immutables]
+ * pub struct Immutables {
+ *     pub public_key: PublicKey,  // serializes to [x, y]
+ * }
+ * ```
+ *
+ * Uses `serializeFromLayout` to map the TypeScript `SigningPublicKey` to the Noir
+ * field name and validate against the artifact layout.
  */
 export function serializeSigningKey(key: SigningPublicKey): Fr[] {
-  return [key.x, key.y];
+  return generic.serializeFromLayout(
+    SchnorrInitializerlessAccountContractArtifact,
+    {
+      public_key: [key.x, key.y],
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -270,4 +299,110 @@ export async function createSchnorrInitializerlessAccountContract(
   );
 
   return { contract, signingPrivateKey, signingPublicKey };
+}
+
+// ---------------------------------------------------------------------------
+// Deployment
+// ---------------------------------------------------------------------------
+
+/**
+ * Result of deploying a SchnorrInitializerlessAccount
+ */
+export interface DeploySchnorrInitializerlessAccountResult {
+  /** The deployed contract handle */
+  contract: SchnorrInitializerlessAccountContractHandle;
+  address: AztecAddress;
+  secretKey: Fr;
+  signingPrivateKey: GrumpkinScalar;
+  signingPublicKey: SigningPublicKey;
+  instance: ContractInstanceWithAddress;
+  /**
+   * The full capsule data: `[actualSalt, ...serializedImmutables]`.
+   * Persist this for backup — needed to re-store immutables on a new PXE.
+   */
+  capsuleData: Fr[];
+  /** The Account object — register this with your wallet for signing. */
+  account: AccountWithSecretKey;
+}
+
+/**
+ * Deploys a SchnorrInitializerlessAccount contract.
+ *
+ * Handles the full lifecycle:
+ * 1. Derives signing keys from secret
+ * 2. Derives public keys for the contract instance
+ * 3. Serializes the signing key using the artifact layout
+ * 4. Calls `deployWithImmutables` (salt derivation, PXE registration,
+ *    `store_immutables` persistence, and optional publication)
+ * 5. Creates the `AccountContract` and `Account` objects for wallet integration
+ *
+ * The returned `account` can be registered with your wallet for signing.
+ * The returned `capsuleData` should be persisted externally for PXE recovery.
+ *
+ * @param wallet - Any Aztec wallet (not test-specific)
+ * @param options - Deployment options (secretKey, actualSalt, publication flags, etc.)
+ * @returns Everything needed to use the account: contract, keys, capsuleData, account
+ */
+export async function deploySchnorrInitializerlessAccount(
+  wallet: Wallet,
+  options?: DeployWithImmutablesOptions,
+): Promise<DeploySchnorrInitializerlessAccountResult> {
+  const secretKey = options?.secretKey ?? Fr.random();
+
+  // Derive signing keys
+  const signingPrivateKey = deriveSigningKey(secretKey);
+  const schnorr = new Schnorr();
+  const publicKeyPoint = await schnorr.computePublicKey(signingPrivateKey);
+  const signingPublicKey: SigningPublicKey = {
+    x: new Fr(publicKeyPoint.x.toBigInt()),
+    y: new Fr(publicKeyPoint.y.toBigInt()),
+  };
+
+  // Derive public keys for the contract instance
+  const { publicKeys } = await deriveKeys(secretKey);
+
+  // Deploy with immutables (handles salt, PXE registration, store_immutables, publication)
+  const deployResult = await generic.deployWithImmutables(
+    wallet,
+    SchnorrInitializerlessAccountContractArtifact,
+    serializeSigningKey(signingPublicKey),
+    { ...options, publicKeys, secretKey },
+  );
+
+  const instance = deployResult.instance;
+  const address = instance.address;
+
+  // Create AccountContract for wallet signing integration
+  const accountContract = new SchnorrInitializerlessAccountContract(
+    signingPrivateKey,
+    signingPublicKey,
+  );
+
+  const completeAddress = await CompleteAddress.fromSecretKeyAndInstance(
+    secretKey,
+    instance,
+  );
+
+  const baseAccount = accountContract.getAccount(completeAddress);
+  const account = new AccountWithSecretKey(
+    baseAccount,
+    secretKey,
+    instance.salt,
+  );
+
+  const contract = SchnorrInitializerlessAccountContractHandle.at(
+    address,
+    wallet,
+  );
+
+  return {
+    contract,
+    address,
+    secretKey,
+    signingPrivateKey,
+    signingPublicKey,
+    instance,
+    capsuleData: deployResult.capsuleData,
+    account,
+  };
 }
