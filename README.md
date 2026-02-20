@@ -129,7 +129,9 @@ import { deployWithImmutables } from "./immutables/utils.js";
 
 // Deploy — handles salt derivation, PXE registration, publication,
 // and persistent capsule storage automatically
-const result = await deployWithImmutables(wallet, MyContractArtifact, [field1, field2]);
+const { instance, capsuleData } = await deployWithImmutables(
+  wallet, MyContractArtifact, [field1, field2]
+);
 ```
 
 `deployWithImmutables` automatically:
@@ -138,6 +140,8 @@ const result = await deployWithImmutables(wallet, MyContractArtifact, [field1, f
 3. Validates serialized immutables against the `#[abi(immutables)]` layout in the artifact
 4. Calls `store_immutables().simulate()` to persist immutables to the PXE's CapsuleStore
 5. Publishes the contract class and instance on-chain (unless skipped)
+
+The returned `capsuleData` is `[actualSalt, ...serializedImmutables]` — persist this externally for backup (see [Re-storing immutables](#re-storing-immutables-pxe-recovery)).
 
 After deployment, **no capsules need to be attached to transactions**. The `init()` function reads from the persistent store:
 
@@ -150,29 +154,38 @@ Transient capsules (`.with({ capsules: [...] })`) still work and take priority o
 
 ### Re-storing immutables (PXE recovery)
 
-If the PXE's data is lost (e.g., browser wallet clears state, migrating to a new PXE), you can re-store the immutables by calling `store_immutables` again. You only need the `actual_salt` and the serialized immutables:
+If the PXE's data is lost (e.g., browser wallet clears state, migrating to a new PXE), you can re-store the immutables by calling `store_immutables` again with the `capsuleData` returned from deployment:
 
 ```typescript
-const capsuleData = [actualSalt, ...serializedImmutables];
+// capsuleData was returned by deployWithImmutables — persist it externally for this scenario
 await contract.methods.store_immutables(capsuleData).simulate({ from: caller });
 ```
 
-The `store()` method validates the data against the contract's salt before persisting, so it's safe to call at any time.
+The `store()` method validates the data against the contract's salt before persisting, so it's safe to call at any time. This is why persisting `capsuleData` externally (e.g., in a database or local storage) is recommended.
+
+> **Warning — Capsule data loss breaks contract functionality**
+>
+> The `capsuleData` (`[actualSalt, ...serializedImmutables]`) is required for any function that reads immutables. If this data is lost from the PXE and no external backup exists, those functions will fail permanently — the capsule content is verified against the contract's salt at runtime and cannot be reconstructed without the original values. Always persist `capsuleData` externally after deployment.
 
 ### Published vs unpublished deployment
 
 Contracts deployed with the immutables pattern can be either **published** (on-chain) or **unpublished** (PXE-only):
 
-- **Published** (default): The contract instance is registered on-chain. Other parties can discover and interact with the contract.
-- **Unpublished** (`skipInstancePublication: true`): The contract is only registered in the local PXE. Private execution still works because it's validated locally — the contract never needs to be visible on-chain. This is useful for account contracts that only use private functions.
+- **Unpublished** (default): The contract is only registered in the local PXE. Private execution still works because it's validated locally — the contract never needs to be visible on-chain. This is useful for account contracts that only use private functions.
+- **Published** (`publishInstance: true`): The contract instance is registered on-chain. Other parties can discover and interact with the contract.
+
+> **Warning — On-chain publication is opt-in**
+>
+> `deployWithImmutables` does **not** publish the contract class or instance on-chain by default. If your contract has public functions or needs to be discoverable by other parties, pass `publishClass: true` and `publishInstance: true` explicitly.
 
 ```typescript
-// Published deployment (default)
+// Unpublished deployment (default — PXE-only)
 const result = await deployWithImmutables(wallet, artifact, serializedImmutables);
 
-// Unpublished deployment (PXE-only)
+// Published deployment (on-chain)
 const result = await deployWithImmutables(wallet, artifact, serializedImmutables, {
-  skipInstancePublication: true,
+  publishClass: true,
+  publishInstance: true,
 });
 ```
 
@@ -226,6 +239,89 @@ fn is_valid_impl(context: &mut PrivateContext, outer_hash: Field) -> bool {
 No constructor, no note delivery, no `#[noinitcheck]`. The contract is immediately usable after deployment.
 
 A standard `schnorr_account_contract` using the traditional initializer pattern is included for comparison.
+
+### TypeScript Usage (npm package)
+
+When importing this library as an npm package, deploying an initializerless Schnorr account is a single function call:
+
+```typescript
+import {
+  deploySchnorrInitializerlessAccount,
+} from "immutables-macro/schnorr-initializerless-account";
+
+// Deploy — one call handles everything:
+//   key derivation, salt computation, PXE registration,
+//   store_immutables persistence, and optional on-chain publication
+const {
+  contract,        // contract handle — call methods on it
+  account,         // AccountWithSecretKey — register with your wallet
+  address,         // the deterministic contract address
+  capsuleData,     // [actualSalt, pubkey.x, pubkey.y] — persist for backup
+  signingPublicKey,
+} = await deploySchnorrInitializerlessAccount(wallet);
+
+// Register the account with your wallet for signing
+// (wallet-specific — depends on your wallet implementation)
+wallet.registerAccount(account);
+
+// Use it — no capsules needed, data is in PXE persistent store
+await contract.methods.get_signing_public_key().simulate({ from: caller });
+
+// Persist capsuleData externally for PXE recovery
+await db.save("account-backup", { address, capsuleData });
+```
+
+For PXE recovery after data loss:
+
+```typescript
+const saved = await db.load("account-backup");
+await contract.methods.store_immutables(saved.capsuleData).simulate({ from: caller });
+```
+
+To pre-compute the address without deploying:
+
+```typescript
+import {
+  computeSchnorrAccountAddress,
+} from "immutables-macro/schnorr-initializerless-account";
+
+const { address, capsuleData } = await computeSchnorrAccountAddress(signingKey);
+// Send funds to address, deploy later
+```
+
+For custom deployment options:
+
+```typescript
+await deploySchnorrInitializerlessAccount(wallet, {
+  secretKey: mySecretKey,        // use specific secret instead of random
+  actualSalt: mySalt,            // deterministic salt instead of random
+  publishClass: true,            // publish contract class on-chain
+  publishInstance: true,         // publish contract instance on-chain
+});
+```
+
+For generic contracts (not account-specific), use `deployWithImmutables` with `serializeFromLayout` to build a typed wrapper over your own Noir immutables struct. For example, a private recovery module that commits a recovery address and secret hash into its identity:
+
+```typescript
+import { deployWithImmutables, serializeFromLayout } from "immutables-macro/immutables/utils";
+import { PrivateRecoveryModuleArtifact } from "./artifacts/PrivateRecoveryModule.js";
+
+// Example Noir struct:
+//   #[immutables]
+//   pub struct Immutables {
+//       pub recovery_address: AztecAddress,
+//       pub secret_hash: Field,
+//   }
+
+const serialized = serializeFromLayout(PrivateRecoveryModuleArtifact, {
+  recovery_address: recoveryAddress.toField(),
+  secret_hash: secretHash,
+});
+
+const { instance, capsuleData } = await deployWithImmutables(
+  wallet, PrivateRecoveryModuleArtifact, serialized
+);
+```
 
 ## Artifact Introspection
 

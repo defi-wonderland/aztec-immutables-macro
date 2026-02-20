@@ -59,8 +59,22 @@ async function registerDeployedSponsoredFPCInWalletAndGetAddress(
   return instance.address;
 }
 
-import { registerInitializerlessAccount } from "./schnorr-initializerless-account/utils.js";
+import { deploySchnorrInitializerlessAccount } from "./schnorr-initializerless-account/index.js";
 import { deploySchnorrAccount } from "./schnorr-account/utils.js";
+
+/**
+ * Deploys a SchnorrInitializerlessAccount and registers it with TestWallet for signing.
+ * This is a test-only helper — production wallets handle account registration differently.
+ */
+async function deployAndRegister(
+  wallet: TestWallet,
+  options?: Parameters<typeof deploySchnorrInitializerlessAccount>[1],
+) {
+  const result = await deploySchnorrInitializerlessAccount(wallet, options);
+  // @ts-ignore — TestWallet-specific: register account for signing
+  wallet.accounts?.set(result.address.toString(), result.account);
+  return result;
+}
 
 // Import Token and Dripper from aztec-standards
 // Note: Path goes up from src/ts/ to workspace root, then to aztec-standards
@@ -118,12 +132,9 @@ describe("Initializerless Account with Dripper FPC", () => {
 
   it("should drip to private balance of initializerless account", async () => {
     // Deploy SchnorrInitializerlessAccount
-    const initializerlessAccount = await registerInitializerlessAccount(
-      wallet,
-      {
-        secretKey: Fr.random(),
-      },
-    );
+    const initializerlessAccount = await deployAndRegister(wallet, {
+      secretKey: Fr.random(),
+    });
 
     const initialBalance = await token.methods
       .balance_of_private(initializerlessAccount.address)
@@ -178,9 +189,8 @@ describe("Initializerless Account with Dripper FPC", () => {
   });
 
   it("should allow unpublished account to send private transactions", async () => {
-    const unpublishedAccount = await registerInitializerlessAccount(wallet, {
+    const unpublishedAccount = await deployAndRegister(wallet, {
       secretKey: Fr.random(),
-      skipInstancePublication: true,
     });
 
     // Verify it's truly unpublished
@@ -208,9 +218,8 @@ describe("Initializerless Account with Dripper FPC", () => {
   });
 
   it("should allow unpublished account to send public transactions", async () => {
-    const unpublishedAccount = await registerInitializerlessAccount(wallet, {
+    const unpublishedAccount = await deployAndRegister(wallet, {
       secretKey: Fr.random(),
-      skipInstancePublication: true,
     });
 
     // Verify it's truly unpublished
@@ -239,12 +248,9 @@ describe("Initializerless Account with Dripper FPC", () => {
 
   it("should demonstrate both accounts working side by side with transfers", async () => {
     // Deploy both account types
-    const initializerlessAccount = await registerInitializerlessAccount(
-      wallet,
-      {
-        secretKey: Fr.random(),
-      },
-    );
+    const initializerlessAccount = await deployAndRegister(wallet, {
+      secretKey: Fr.random(),
+    });
     const standardAccount = await deploySchnorrAccount(wallet, {
       secretKey: Fr.random(),
     });
@@ -394,12 +400,9 @@ describe("Initializerless Account with Dripper FPC", () => {
 
   it("should verify auth witness for delegated transfer", async () => {
     // Deploy an initializerless account and give it tokens
-    const initializerlessAccount = await registerInitializerlessAccount(
-      wallet,
-      {
-        secretKey: Fr.random(),
-      },
-    );
+    const initializerlessAccount = await deployAndRegister(wallet, {
+      secretKey: Fr.random(),
+    });
 
     // Drip tokens to the initializerless account
     await dripper.methods.drip_to_private(token.address, DRIP_AMOUNT).send({
@@ -454,15 +457,16 @@ describe("Initializerless Account with Dripper FPC", () => {
   });
 
   it("should verify contract metadata for published vs unpublished accounts", async () => {
-    // Deploy a published account (default behavior)
-    const publishedAccount = await registerInitializerlessAccount(wallet, {
+    // Deploy a published account
+    const publishedAccount = await deployAndRegister(wallet, {
       secretKey: Fr.random(),
+      publishClass: true,
+      publishInstance: true,
     });
 
-    // Deploy an unpublished account (PXE-only)
-    const unpublishedAccount = await registerInitializerlessAccount(wallet, {
+    // Deploy an unpublished account (PXE-only, default behavior)
+    const unpublishedAccount = await deployAndRegister(wallet, {
       secretKey: Fr.random(),
-      skipInstancePublication: true,
     });
 
     // Check contract metadata for published account

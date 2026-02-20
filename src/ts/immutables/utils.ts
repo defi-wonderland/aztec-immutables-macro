@@ -14,13 +14,13 @@
  * ## Usage
  *
  * ```typescript
- * import { deployWithImmutables, createImmutablesCapsule } from "./immutables/utils.js";
+ * import { deployWithImmutables } from "./immutables/utils.js";
  *
  * // Deploy any contract with immutables
- * const result = await deployWithImmutables(wallet, MyContractArtifact, [field1, field2]);
+ * const { instance, capsuleData } = await deployWithImmutables(wallet, MyContractArtifact, [field1, field2]);
  *
- * // Create capsule for function calls
- * const capsule = createImmutablesCapsule(result.instance.address, result.actualSalt, [field1, field2]);
+ * // Persist capsuleData for backup (needed for PXE recovery)
+ * // capsuleData = [actualSalt, field1, field2]
  * ```
  */
 
@@ -155,6 +155,91 @@ export function getImmutablesLayout(
   return { serializedLen, fields };
 }
 
+/**
+ * Serializes immutable values into an Fr[] array using the artifact's layout.
+ *
+ * Uses `getImmutablesLayout()` to determine field ordering and validates that:
+ * - All layout fields are provided (no missing fields)
+ * - No extra fields are provided (no unknown fields)
+ * - The total flattened length matches `serialized_len`
+ *
+ * Values can be a single `Fr` (for `Field`-type immutables) or `Fr[]` (for nested
+ * structs like `PublicKey` that serialize to multiple elements).
+ *
+ * @example
+ * ```typescript
+ * // Flat fields (Field type)
+ * serializeFromLayout(artifact, {
+ *   signing_key_x: new Fr(111n),
+ *   signing_key_y: new Fr(222n),
+ * });
+ *
+ * // Nested struct (PublicKey type → [x, y])
+ * serializeFromLayout(artifact, {
+ *   public_key: [new Fr(111n), new Fr(222n)],
+ * });
+ * ```
+ *
+ * @param artifact - The contract artifact (must have `#[abi(immutables)]` layout)
+ * @param values - Map of Noir field names to their Fr value(s)
+ * @returns The serialized Fr[] array in the correct order
+ */
+export function serializeFromLayout(
+  artifact: ContractArtifact,
+  values: Record<string, Fr | Fr[]>,
+): Fr[] {
+  const layout = getImmutablesLayout(artifact);
+  if (!layout) {
+    throw new Error(
+      `Contract artifact "${artifact.name}" has no #[abi(immutables)] layout`,
+    );
+  }
+
+  const layoutFieldNames = Object.keys(layout.fields);
+
+  // Validate all layout fields are provided
+  for (const name of layoutFieldNames) {
+    if (!(name in values)) {
+      throw new Error(
+        `Missing immutable field "${name}". Expected: ${layoutFieldNames.join(", ")}`,
+      );
+    }
+  }
+
+  // Validate no extra fields provided
+  for (const name of Object.keys(values)) {
+    if (!(name in layout.fields)) {
+      throw new Error(
+        `Unknown immutable field "${name}". Expected: ${layoutFieldNames.join(", ")}`,
+      );
+    }
+  }
+
+  // Sort fields by layout index and flatten
+  const sortedEntries = layoutFieldNames
+    .map((name) => ({ name, index: layout.fields[name].index }))
+    .sort((a, b) => a.index - b.index);
+
+  const result: Fr[] = [];
+  for (const entry of sortedEntries) {
+    const value = values[entry.name];
+    if (Array.isArray(value)) {
+      result.push(...value);
+    } else {
+      result.push(value);
+    }
+  }
+
+  // Validate total length matches layout
+  if (result.length !== layout.serializedLen) {
+    throw new Error(
+      `Serialized length mismatch: got ${result.length} Fr elements, expected ${layout.serializedLen} (from #[abi(immutables)] layout)`,
+    );
+  }
+
+  return result;
+}
+
 // ---------------------------------------------------------------------------
 // Low-level building blocks
 // ---------------------------------------------------------------------------
@@ -279,19 +364,22 @@ export async function createImmutablesInstance(
  * @param artifact - The contract artifact
  * @param serializedImmutables - The immutables serialized as Fr[]
  * @param options - Optional address computation options
- * @returns The contract address and actual_salt for capsule creation
+ * @returns The contract address and capsuleData for backup/capsule creation
  */
 export async function computeImmutablesAddress(
   artifact: ContractArtifact,
   serializedImmutables: Fr[],
   options?: ImmutablesInstanceOptions,
-): Promise<{ address: AztecAddress; actualSalt: Fr }> {
+): Promise<{ address: AztecAddress; capsuleData: Fr[] }> {
   const { instance, actualSalt } = await createImmutablesInstance(
     artifact,
     serializedImmutables,
     options,
   );
-  return { address: instance.address, actualSalt };
+  return {
+    address: instance.address,
+    capsuleData: [actualSalt, ...serializedImmutables],
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -303,17 +391,25 @@ export async function computeImmutablesAddress(
  */
 export interface DeployWithImmutablesResult {
   instance: ContractInstanceWithAddress;
-  /** The random salt stored in capsule, needed for creating capsules later */
-  actualSalt: Fr;
+  /**
+   * The full capsule data array: `[actualSalt, ...serializedImmutables]`.
+   * Persist this externally for backup — it contains everything needed to
+   * re-store immutables on a new PXE via `store_immutables(capsuleData).simulate()`.
+   *
+   * - `capsuleData[0]` is the `actualSalt` (random nonce for address uniqueness)
+   * - `capsuleData[1..]` are the serialized immutable fields
+   */
+  capsuleData: Fr[];
 }
 
 /**
  * Options for deploying a contract with immutables
  */
 export interface DeployWithImmutablesOptions extends ImmutablesInstanceOptions {
-  skipClassPublication?: boolean;
-  /** Skip publishing the contract instance on-chain. Private execution still works. */
-  skipInstancePublication?: boolean;
+  /** Publish the contract class on-chain (default: `false`). */
+  publishClass?: boolean;
+  /** Publish the contract instance on-chain (default: `false`). Private execution works without publication. */
+  publishInstance?: boolean;
   /** Secret key for account contract registration (passed to wallet.registerContract) */
   secretKey?: Fr;
 }
@@ -378,7 +474,7 @@ export async function deployWithImmutables(
     await storeCall.simulate({ from: deployerAddress });
   }
 
-  if (!options?.skipInstancePublication) {
+  if (options?.publishInstance) {
     // Create capsule with [actual_salt, ...serialized_immutables]
     const capsule = createImmutablesCapsule(
       instance.address,
@@ -390,8 +486,8 @@ export async function deployWithImmutables(
     // (mirrors how DeployMethod merges class + instance publication)
     const payloads: ExecutionPayload[] = [];
 
-    // Publish the contract class if not skipped
-    if (!options?.skipClassPublication) {
+    // Publish the contract class if requested
+    if (options?.publishClass) {
       const contractClass = await getContractClassFromArtifact(artifact);
       const metadata = await wallet.getContractClassMetadata(contractClass.id);
 
@@ -432,5 +528,5 @@ export async function deployWithImmutables(
     await wallet.sendTx(merged, { from: deployerAddress });
   }
 
-  return { instance, actualSalt };
+  return { instance, capsuleData };
 }

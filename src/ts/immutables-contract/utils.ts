@@ -13,10 +13,18 @@ export {
   createImmutablesCapsule,
   computeContractSalt,
   getImmutablesLayout,
+  serializeFromLayout,
 } from "../immutables/utils.js";
 
 /**
- * Immutables type matching the Noir struct
+ * Immutables type matching the Noir struct:
+ * ```noir
+ * #[immutables]
+ * pub struct Immutables {
+ *     pub signing_key_x: Field,
+ *     pub signing_key_y: Field,
+ * }
+ * ```
  */
 export interface Immutables {
   signingKeyX: Fr;
@@ -24,10 +32,16 @@ export interface Immutables {
 }
 
 /**
- * Serializes Immutables to Fr array (matches Noir serialization order)
+ * Serializes Immutables to Fr[] using the artifact's `#[abi(immutables)]` layout.
+ *
+ * Maps TypeScript camelCase names to Noir snake_case field names and uses the
+ * layout to determine serialization order and validate field completeness.
  */
 export function serializeImmutables(immutables: Immutables): Fr[] {
-  return [immutables.signingKeyX, immutables.signingKeyY];
+  return generic.serializeFromLayout(ImmutablesContractContractArtifact, {
+    signing_key_x: immutables.signingKeyX,
+    signing_key_y: immutables.signingKeyY,
+  });
 }
 
 /**
@@ -35,24 +49,20 @@ export function serializeImmutables(immutables: Immutables): Fr[] {
  */
 export interface DeployImmutablesContractResult {
   contract: ImmutablesContractContract;
-  /** The random salt stored in capsule, needed for creating capsules later */
-  actualSalt: Fr;
+  /**
+   * The full capsule data: `[actualSalt, ...serializedImmutables]`.
+   * Persist this for backup — needed to re-store immutables on a new PXE.
+   */
+  capsuleData: Fr[];
 }
 
 /**
  * Deploys the ImmutablesContract with the given immutables using the initializerless pattern.
  *
- * This handles the initializerless deployment pattern:
- * 1. Generates random actual_salt
- * 2. Computes salt = poseidon2Hash([actual_salt, ...serialized_immutables])
- * 3. Creates contract instance with this salt
- * 4. Registers and publishes the contract
- * 5. Sends capsule containing [actual_salt, ...serialized_immutables]
- *
  * @param wallet - The wallet to deploy with
  * @param immutables - The immutables to commit to the contract address
  * @param options - Optional deployment options
- * @returns The deployed contract and actual_salt for capsule creation
+ * @returns The deployed contract and capsuleData for backup/recovery
  */
 export async function deployImmutablesContract(
   wallet: Wallet,
@@ -73,7 +83,7 @@ export async function deployImmutablesContract(
 
   return {
     contract,
-    actualSalt: result.actualSalt,
+    capsuleData: result.capsuleData,
   };
 }
 
@@ -85,13 +95,10 @@ export async function deployImmutablesContract(
  * - The initializer sets up storage (counter)
  * - Immutables are committed via the salt derivation
  *
- * Uses `deployWithImmutables` with initializer options so the contract instance
- * includes the correct initializationHash while still deriving the salt from immutables.
- *
  * @param wallet - The wallet to deploy with
  * @param immutables - The immutables to commit to the contract address
  * @param initialCounter - The initial counter value for storage
- * @returns The deployed contract and actual_salt for capsule creation
+ * @returns The deployed contract and capsuleData for backup/recovery
  */
 export async function deployMixedUsageContract(
   wallet: Wallet,
@@ -105,6 +112,8 @@ export async function deployMixedUsageContract(
     {
       initializer: "initialize",
       initializerArgs: [initialCounter],
+      publishClass: true,
+      publishInstance: true,
     },
   );
 
@@ -115,6 +124,6 @@ export async function deployMixedUsageContract(
 
   return {
     contract,
-    actualSalt: result.actualSalt,
+    capsuleData: result.capsuleData,
   };
 }

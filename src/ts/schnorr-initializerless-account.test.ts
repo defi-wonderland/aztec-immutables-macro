@@ -17,9 +17,9 @@ import {
   createSigningKeyCapsule,
   computeContractSalt,
   computeSchnorrAccountAddress,
+  deploySchnorrInitializerlessAccount,
   type SigningPublicKey,
 } from "./schnorr-initializerless-account/index.js";
-import { registerInitializerlessAccount } from "./schnorr-initializerless-account/utils.js";
 import { setupTestSuite } from "./utils.js";
 
 const SIGNING_KEY_1 = {
@@ -102,8 +102,11 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
   // Published deployment tests
   describe("Published", () => {
     it("should deploy account with signing key and read it back", async () => {
-      const { contract, actualSalt, signingPublicKey, instance } =
-        await registerInitializerlessAccount(wallet);
+      const { contract, capsuleData, signingPublicKey, instance } =
+        await deploySchnorrInitializerlessAccount(wallet, {
+          publishClass: true,
+          publishInstance: true,
+        });
 
       expect(contract.address).toBeDefined();
       expect(contract.address.toString()).not.toBe(
@@ -125,18 +128,21 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
       // Verify pre-computed address matches deployed address (TS-Noir agreement)
       const { address: preComputedAddress } =
         await computeSchnorrAccountAddress(signingPublicKey, {
-          actualSalt,
+          actualSalt: capsuleData[0],
           publicKeys: instance.publicKeys,
         });
       expect(preComputedAddress.toString()).toBe(contract.address.toString());
     });
 
     it("should deploy with different secret keys and get different addresses", async () => {
-      const account1 = await registerInitializerlessAccount(wallet, {
+      const account1 = await deploySchnorrInitializerlessAccount(wallet, {
         secretKey: Fr.random(),
+        publishClass: true,
+        publishInstance: true,
       });
-      const account2 = await registerInitializerlessAccount(wallet, {
+      const account2 = await deploySchnorrInitializerlessAccount(wallet, {
         secretKey: Fr.random(),
+        publishInstance: true,
       });
 
       // Different secrets should produce different addresses
@@ -159,8 +165,8 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
     });
 
     it("should fail with wrong capsule data", async () => {
-      const { contract, actualSalt, signingPublicKey } =
-        await registerInitializerlessAccount(wallet);
+      const { contract, capsuleData, signingPublicKey } =
+        await deploySchnorrInitializerlessAccount(wallet);
 
       // Try to call with a different (wrong) signing key in capsule
       const wrongKey: SigningPublicKey = {
@@ -169,7 +175,7 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
       };
       const wrongCapsule = createSigningKeyCapsule(
         contract.address,
-        actualSalt,
+        capsuleData[0],
         wrongKey,
       );
 
@@ -183,11 +189,11 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
     });
 
     it("should fail with wrong actualSalt in capsule", async () => {
-      const { contract, actualSalt, signingPublicKey } =
-        await registerInitializerlessAccount(wallet);
+      const { contract, capsuleData, signingPublicKey } =
+        await deploySchnorrInitializerlessAccount(wallet);
 
       // Correct key but wrong actualSalt
-      const wrongActualSalt = new Fr(actualSalt.toBigInt() + 1n);
+      const wrongActualSalt = new Fr(capsuleData[0].toBigInt() + 1n);
       const wrongCapsule = createSigningKeyCapsule(
         contract.address,
         wrongActualSalt,
@@ -208,9 +214,7 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
   describe("Unpublished (PXE-only)", () => {
     it("should deploy unpublished account and read signing key back", async () => {
       const { contract, signingPublicKey } =
-        await registerInitializerlessAccount(wallet, {
-          skipInstancePublication: true,
-        });
+        await deploySchnorrInitializerlessAccount(wallet);
 
       expect(contract.address).toBeDefined();
       expect(contract.address.toString()).not.toBe(
@@ -231,13 +235,11 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
     });
 
     it("should deploy unpublished with different secret keys and get different addresses", async () => {
-      const account1 = await registerInitializerlessAccount(wallet, {
+      const account1 = await deploySchnorrInitializerlessAccount(wallet, {
         secretKey: Fr.random(),
-        skipInstancePublication: true,
       });
-      const account2 = await registerInitializerlessAccount(wallet, {
+      const account2 = await deploySchnorrInitializerlessAccount(wallet, {
         secretKey: Fr.random(),
-        skipInstancePublication: true,
       });
 
       // Different secrets should produce different addresses

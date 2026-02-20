@@ -53,7 +53,7 @@ describe("Immutables Contract - Initializerless Pattern", () => {
     const { contract: contract2 } = await deployImmutablesContract(
       wallet,
       IMMUTABLES_1,
-      { actualSalt: ACTUAL_SALT_2, skipClassPublication: true },
+      { actualSalt: ACTUAL_SALT_2 },
     );
 
     // Different actualSalt should produce different addresses
@@ -95,7 +95,14 @@ describe("Immutables Contract - Initializerless Pattern", () => {
   // Published deployment tests
   describe("Published", () => {
     it("should deploy contract with immutables and read them back", async () => {
-      const { contract } = await deployImmutablesContract(wallet, IMMUTABLES_1);
+      const { contract } = await deployImmutablesContract(
+        wallet,
+        IMMUTABLES_1,
+        {
+          publishClass: true,
+          publishInstance: true,
+        },
+      );
 
       expect(contract.address).toBeDefined();
       expect(contract.address.toString()).not.toBe(
@@ -116,14 +123,14 @@ describe("Immutables Contract - Initializerless Pattern", () => {
     });
 
     it("should fail with wrong capsule data", async () => {
-      const { contract, actualSalt } = await deployImmutablesContract(
+      const { contract, capsuleData } = await deployImmutablesContract(
         wallet,
         IMMUTABLES_1,
       );
 
       const wrongCapsule = createImmutablesCapsule(
         contract.address,
-        actualSalt,
+        capsuleData[0], // actualSalt
         serializeImmutables(IMMUTABLES_2),
       );
 
@@ -137,14 +144,17 @@ describe("Immutables Contract - Initializerless Pattern", () => {
   });
 
   it("should reject store_immutables with wrong data", async () => {
-    const { contract, actualSalt } = await deployImmutablesContract(
+    const { contract, capsuleData } = await deployImmutablesContract(
       wallet,
       IMMUTABLES_1,
     );
 
     // Try to store wrong immutables (IMMUTABLES_2 instead of IMMUTABLES_1)
     // The Noir store() function validates poseidon2_hash(capsule_data) == instance.salt
-    const wrongCapsuleData = [actualSalt, ...serializeImmutables(IMMUTABLES_2)];
+    const wrongCapsuleData = [
+      capsuleData[0],
+      ...serializeImmutables(IMMUTABLES_2),
+    ];
 
     await expect(
       contract.methods
@@ -156,7 +166,7 @@ describe("Immutables Contract - Initializerless Pattern", () => {
   });
 
   it("should allow re-storing correct immutables (PXE recovery)", async () => {
-    const { contract, actualSalt } = await deployImmutablesContract(
+    const { contract, capsuleData } = await deployImmutablesContract(
       wallet,
       IMMUTABLES_1,
     );
@@ -169,7 +179,6 @@ describe("Immutables Contract - Initializerless Pattern", () => {
     expect(result1[1]).toEqual(IMMUTABLES_1.signingKeyY.toBigInt());
 
     // Re-store immutables (simulating PXE recovery after data loss)
-    const capsuleData = [actualSalt, ...serializeImmutables(IMMUTABLES_1)];
     await contract.methods
       .store_immutables(capsuleData)
       .simulate({ from: alice });
@@ -198,13 +207,7 @@ describe("Immutables Contract - Initializerless Pattern", () => {
   // Unpublished (PXE-only) deployment tests
   describe("Unpublished (PXE-only)", () => {
     it("should deploy unpublished contract and read immutables back", async () => {
-      const { contract } = await deployImmutablesContract(
-        wallet,
-        IMMUTABLES_1,
-        {
-          skipInstancePublication: true,
-        },
-      );
+      const { contract } = await deployImmutablesContract(wallet, IMMUTABLES_1);
 
       expect(contract.address).toBeDefined();
       expect(contract.address.toString()).not.toBe(
