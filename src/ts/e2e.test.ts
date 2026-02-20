@@ -1,9 +1,9 @@
 /**
- * E2E Test: Initializerless Account with Dripper FPC
+ * E2E Test: Initializerless Account
  *
  * This test validates the initializerless immutables pattern by demonstrating
  * that a SchnorrInitializerlessAccount (no initializer, key committed in address)
- * can successfully receive private token transfers via the Dripper faucet.
+ * can successfully receive and transfer private tokens.
  *
  * ## Problem Being Solved
  *
@@ -22,12 +22,10 @@
  *
  * ## Test Flow
  *
- * 1. Deploy Dripper contract (faucet)
- * 2. Deploy Token contract with Dripper as minter
- * 3. Deploy SchnorrInitializerlessAccount
- * 4. Deploy standard SchnorrAccount for comparison
- * 5. Use drip_to_private from both accounts
- * 6. Verify both accounts received tokens
+ * 1. Deploy Token contract with deployer as minter
+ * 2. Deploy SchnorrInitializerlessAccount
+ * 3. Deploy standard SchnorrAccount for comparison
+ * 4. Mint tokens to accounts, verify transfers work
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
@@ -76,33 +74,30 @@ async function deployAndRegister(
   return result;
 }
 
-// Import Token and Dripper from aztec-standards
-// Note: Path goes up from src/ts/ to workspace root, then to aztec-standards
+// Import Token from aztec-standards
 import { TokenContract } from "../../src/artifacts/Token.js";
-import { DripperContract } from "../../src/artifacts/Dripper.js";
 
-describe("Initializerless Account with Dripper FPC", () => {
+describe("Initializerless Account", () => {
   let store: AztecLMDBStoreV2;
   let wallet: TestWallet;
   let deployerAddress: AztecAddress;
 
   // Contracts
   let token: TokenContract;
-  let dripper: DripperContract;
 
   // Fee sponsorship - allows accounts without fee juice to transact
   let sponsoredFPCAddress: AztecAddress;
   let sponsoredPaymentMethod: SponsoredFeePaymentMethod;
 
   // Test configuration
-  const DRIP_AMOUNT = 1000n; // Amount to drip to each account
+  const MINT_AMOUNT = 1000n;
 
   beforeAll(async () => {
     ({
       store,
       wallet,
       accounts: [deployerAddress],
-    } = await setupTestSuite("initializerless-dripper"));
+    } = await setupTestSuite("initializerless-account"));
 
     // Register the canonical SponsoredFPC for fee sponsorship
     // This allows accounts without fee juice to send transactions
@@ -110,18 +105,13 @@ describe("Initializerless Account with Dripper FPC", () => {
       await registerDeployedSponsoredFPCInWalletAndGetAddress(wallet);
     sponsoredPaymentMethod = new SponsoredFeePaymentMethod(sponsoredFPCAddress);
 
-    // Deploy Dripper contract (faucet)
-    dripper = await DripperContract.deploy(wallet).send({
-      from: deployerAddress,
-    });
-
-    // Deploy Token contract with Dripper as minter
+    // Deploy Token contract with deployer as minter
     token = await TokenContract.deployWithOpts(
       { wallet, method: "constructor_with_minter" },
       "TestToken", // name
       "TST", // symbol
       18n, // decimals
-      dripper.address, // minter = Dripper contract
+      deployerAddress, // minter = deployer
       AztecAddress.ZERO, // upgrade_authority (not upgradeable)
     ).send({ from: deployerAddress });
   });
@@ -130,7 +120,7 @@ describe("Initializerless Account with Dripper FPC", () => {
     await store.delete();
   });
 
-  it("should drip to private balance of initializerless account", async () => {
+  it("should mint to private balance of initializerless account", async () => {
     // Deploy SchnorrInitializerlessAccount
     const initializerlessAccount = await deployAndRegister(wallet, {
       secretKey: Fr.random(),
@@ -141,25 +131,19 @@ describe("Initializerless Account with Dripper FPC", () => {
       .simulate({ from: deployerAddress });
     expect(initialBalance).toEqual(0n);
 
-    // Immutables loaded from persistent store (store_immutables called during deployment)
-    const tx = await dripper.methods
-      .drip_to_private(token.address, DRIP_AMOUNT)
-      .send({
-        from: initializerlessAccount.address,
-        fee: { paymentMethod: sponsoredPaymentMethod },
-      });
-    expect(tx.isMined()).toBe(true);
+    // Deployer mints tokens to the initializerless account
+    await token.methods
+      .mint_to_private(initializerlessAccount.address, MINT_AMOUNT)
+      .send({ from: deployerAddress });
 
-    // Check private balance using unconstrained function
-    // Note: balance_of_private is an unconstrained function that reads from PXE state
     const finalBalance = await token.methods
       .balance_of_private(initializerlessAccount.address)
       .simulate({ from: deployerAddress });
 
-    expect(finalBalance).toEqual(DRIP_AMOUNT);
+    expect(finalBalance).toEqual(MINT_AMOUNT);
   });
 
-  it("should drip to private balance of standard schnorr account", async () => {
+  it("should mint to private balance of standard schnorr account", async () => {
     // Deploy standard SchnorrAccount for comparison
     const standardAccount = await deploySchnorrAccount(wallet, {
       secretKey: Fr.random(),
@@ -170,22 +154,17 @@ describe("Initializerless Account with Dripper FPC", () => {
       .simulate({ from: deployerAddress });
     expect(initialBalance).toEqual(0n);
 
-    // Call drip_to_private from the standard account
-    const tx = await dripper.methods
-      .drip_to_private(token.address, DRIP_AMOUNT)
-      .send({
-        from: standardAccount.contract.address,
-        fee: { paymentMethod: sponsoredPaymentMethod },
-      });
-
-    expect(tx.isMined()).toBe(true);
+    // Deployer mints tokens to the standard account
+    await token.methods
+      .mint_to_private(standardAccount.contract.address, MINT_AMOUNT)
+      .send({ from: deployerAddress });
 
     // Check private balance
     const finalBalance = await token.methods
       .balance_of_private(standardAccount.contract.address)
       .simulate({ from: deployerAddress });
 
-    expect(finalBalance).toEqual(DRIP_AMOUNT);
+    expect(finalBalance).toEqual(MINT_AMOUNT);
   });
 
   it("should allow unpublished account to send private transactions", async () => {
@@ -199,9 +178,25 @@ describe("Initializerless Account with Dripper FPC", () => {
     );
     expect(metadata.isContractPublished).toBe(false);
 
+    // Deployer mints tokens to the unpublished account
+    await token.methods
+      .mint_to_private(unpublishedAccount.address, MINT_AMOUNT)
+      .send({ from: deployerAddress });
+
+    const privateBalance = await token.methods
+      .balance_of_private(unpublishedAccount.address)
+      .simulate({ from: deployerAddress });
+    expect(privateBalance).toEqual(MINT_AMOUNT);
+
+    // Unpublished account sends a private transfer — proves it can transact
     // Immutables loaded from persistent store (store_immutables called during deployment)
-    const tx = await dripper.methods
-      .drip_to_private(token.address, DRIP_AMOUNT)
+    const tx = await token.methods
+      .transfer_private_to_private(
+        unpublishedAccount.address,
+        deployerAddress,
+        MINT_AMOUNT,
+        0n,
+      )
       .send({
         from: unpublishedAccount.address,
         fee: { paymentMethod: sponsoredPaymentMethod },
@@ -209,12 +204,12 @@ describe("Initializerless Account with Dripper FPC", () => {
 
     expect(tx.isMined()).toBe(true);
 
-    // Verify tokens were received
-    const privateBalance = await token.methods
+    // Verify tokens were transferred
+    const finalBalance = await token.methods
       .balance_of_private(unpublishedAccount.address)
       .simulate({ from: deployerAddress });
 
-    expect(privateBalance).toEqual(DRIP_AMOUNT);
+    expect(finalBalance).toEqual(0n);
   });
 
   it("should allow unpublished account to send public transactions", async () => {
@@ -228,10 +223,20 @@ describe("Initializerless Account with Dripper FPC", () => {
     );
     expect(metadata.isContractPublished).toBe(false);
 
-    // drip_to_public is a public function — proves the unpublished account
-    // can enqueue public calls, not just private ones
-    const tx = await dripper.methods
-      .drip_to_public(token.address, DRIP_AMOUNT)
+    // Deployer mints tokens to the unpublished account's private balance
+    await token.methods
+      .mint_to_private(unpublishedAccount.address, MINT_AMOUNT)
+      .send({ from: deployerAddress });
+
+    // transfer_private_to_public enqueues a public call — proves the unpublished account
+    // can send public transactions, not just private ones
+    const tx = await token.methods
+      .transfer_private_to_public(
+        unpublishedAccount.address,
+        unpublishedAccount.address,
+        MINT_AMOUNT,
+        0n,
+      )
       .send({
         from: unpublishedAccount.address,
         fee: { paymentMethod: sponsoredPaymentMethod },
@@ -243,7 +248,7 @@ describe("Initializerless Account with Dripper FPC", () => {
       .balance_of_public(unpublishedAccount.address)
       .simulate({ from: deployerAddress });
 
-    expect(publicBalance).toEqual(DRIP_AMOUNT);
+    expect(publicBalance).toEqual(MINT_AMOUNT);
   });
 
   it("should demonstrate both accounts working side by side with transfers", async () => {
@@ -255,27 +260,24 @@ describe("Initializerless Account with Dripper FPC", () => {
       secretKey: Fr.random(),
     });
 
-    // Drip to both accounts in sequence - each gets DRIP_AMOUNT (1000)
-    // Immutables loaded from persistent store (store_immutables called during deployment)
-    await dripper.methods.drip_to_private(token.address, DRIP_AMOUNT).send({
-      from: initializerlessAccount.address,
-      fee: { paymentMethod: sponsoredPaymentMethod },
-    });
+    // Deployer mints to both accounts
+    await token.methods
+      .mint_to_private(initializerlessAccount.address, MINT_AMOUNT)
+      .send({ from: deployerAddress });
 
-    await dripper.methods.drip_to_private(token.address, DRIP_AMOUNT).send({
-      from: standardAccount.contract.address,
-      fee: { paymentMethod: sponsoredPaymentMethod },
-    });
+    await token.methods
+      .mint_to_private(standardAccount.contract.address, MINT_AMOUNT)
+      .send({ from: deployerAddress });
 
     const initialInitializerlessPrivateBalance = await token.methods
       .balance_of_private(initializerlessAccount.address)
       .simulate({ from: deployerAddress });
-    expect(initialInitializerlessPrivateBalance).toEqual(DRIP_AMOUNT);
+    expect(initialInitializerlessPrivateBalance).toEqual(MINT_AMOUNT);
 
     const initialStandardPrivateBalance = await token.methods
       .balance_of_private(standardAccount.contract.address)
       .simulate({ from: deployerAddress });
-    expect(initialStandardPrivateBalance).toEqual(DRIP_AMOUNT);
+    expect(initialStandardPrivateBalance).toEqual(MINT_AMOUNT);
 
     // Transfer amounts
     const TRANSFER_TO_STANDARD = 100n;
@@ -365,13 +367,13 @@ describe("Initializerless Account with Dripper FPC", () => {
     // InitializerlessAccount: 1000 - 100 (to standard) - 100 (to public) + 50 (from standard) = 850 private, 100 public
     // StandardAccount: 1000 + 100 (from initializerless) - 50 (to initializerless) = 1050 private, 0 public
     const expectedInitializerlessPrivate =
-      DRIP_AMOUNT -
+      MINT_AMOUNT -
       TRANSFER_TO_STANDARD -
       TRANSFER_TO_PUBLIC +
       TRANSFER_TO_INITIALIZERLESS;
     const expectedInitializerlessPublic = TRANSFER_TO_PUBLIC;
     const expectedStandardPrivate =
-      DRIP_AMOUNT + TRANSFER_TO_STANDARD - TRANSFER_TO_INITIALIZERLESS;
+      MINT_AMOUNT + TRANSFER_TO_STANDARD - TRANSFER_TO_INITIALIZERLESS;
     const expectedStandardPublic = 0n;
 
     const initializerlessPrivateBalance = await token.methods
@@ -404,11 +406,15 @@ describe("Initializerless Account with Dripper FPC", () => {
       secretKey: Fr.random(),
     });
 
-    // Drip tokens to the initializerless account
-    await dripper.methods.drip_to_private(token.address, DRIP_AMOUNT).send({
-      from: initializerlessAccount.address,
-      fee: { paymentMethod: sponsoredPaymentMethod },
-    });
+    // Snapshot deployer balance before (may have accumulated from prior tests)
+    const deployerBalanceBefore = await token.methods
+      .balance_of_private(deployerAddress)
+      .simulate({ from: deployerAddress });
+
+    // Deployer mints tokens to the initializerless account
+    await token.methods
+      .mint_to_private(initializerlessAccount.address, MINT_AMOUNT)
+      .send({ from: deployerAddress });
 
     const TRANSFER_AMOUNT = 100n;
     const nonce = Fr.random();
@@ -448,12 +454,14 @@ describe("Initializerless Account with Dripper FPC", () => {
     const initializerlessBalance = await token.methods
       .balance_of_private(initializerlessAccount.address)
       .simulate({ from: deployerAddress });
-    expect(initializerlessBalance).toEqual(DRIP_AMOUNT - TRANSFER_AMOUNT);
+    expect(initializerlessBalance).toEqual(MINT_AMOUNT - TRANSFER_AMOUNT);
 
-    const deployerBalance = await token.methods
+    const deployerBalanceAfter = await token.methods
       .balance_of_private(deployerAddress)
       .simulate({ from: deployerAddress });
-    expect(deployerBalance).toEqual(TRANSFER_AMOUNT);
+    expect(deployerBalanceAfter).toEqual(
+      deployerBalanceBefore + TRANSFER_AMOUNT,
+    );
   });
 
   it("should verify contract metadata for published vs unpublished accounts", async () => {
