@@ -1,9 +1,0 @@
-[package]
-name = "constants_contract"
-type = "contract"
-compiler_version = ">=1.0.0"
-authors = [""]
-
-[dependencies]
-aztec = { git = "https://github.com/AztecProtocol/aztec-packages/", tag = "v4.0.0-nightly.20260204", directory = "noir-projects/aztec-nr/aztec" }
-initializerless = { path = "../initializerless" }

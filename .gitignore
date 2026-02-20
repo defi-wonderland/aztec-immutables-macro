@@ -9,5 +9,5 @@ codegenCache.json
 .cursor
 store
 store-*
-
+pxe-*
 benchmarks/*.benchmark.json
