@@ -7,6 +7,3 @@ members = [
 
 [benchmark]
 account = "benchmarks/account.benchmark.ts"
-immutables = "benchmarks/immutables.benchmark.ts"
-schnorr_initializerless_account = "benchmarks/schnorr_initializerless_account.benchmark.ts"
-account_counter_comparison = "benchmarks/account_counter_comparison.benchmark.ts"

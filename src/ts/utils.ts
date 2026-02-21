@@ -1,10 +1,4 @@
-import { Wallet } from "@aztec/aztec.js/wallet";
-import {
-  CounterContract,
-  CounterContractArtifact,
-} from "../artifacts/Counter.js";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
-import { Contract } from "@aztec/aztec.js/contracts";
 import { createAztecNodeClient, waitForNode } from "@aztec/aztec.js/node";
 import {
   registerInitialLocalNetworkAccountsInWallet,

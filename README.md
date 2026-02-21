@@ -323,6 +323,25 @@ const { instance, capsuleData } = await deployWithImmutables(
 );
 ```
 
+## Benchmarks
+
+Gate count comparison between the initializerless immutables account and the standard Schnorr account, measured on identical `Token` transfer operations:
+
+| Operation | Immutables Account | Standard Account | Difference |
+|-----------|-------------------|-----------------|------------|
+| `transfer_private_to_private` | 550,774 | 549,676 | +1,098 (+0.20%) |
+| `transfer_private_to_public` | 588,359 | 587,261 | +1,098 (+0.19%) |
+
+The overhead comes entirely from the account entrypoint circuit — loading the signing key from the CapsuleStore instead of `SinglePrivateImmutable` storage:
+
+| Circuit | Immutables | Standard | Difference |
+|---------|-----------|----------|------------|
+| `entrypoint` | 55,546 | 54,448 | **+1,098 (+2.0%)** |
+
+All other circuits (kernel, token, FPC) are identical. Gas costs are the same for both account types.
+
+> The +1,098 gates come from in-circuit salt verification: `poseidon2_hash(capsule_data)` + `assert_eq(salt, instance.salt)`. The standard account defers its key verification to the kernel circuit (note hash tree membership proof), so it doesn't pay this cost in the entrypoint. In exchange, the immutables pattern eliminates the initializer transaction, note delivery, and `#[noinitcheck]` annotations.
+
 ## Artifact Introspection
 
 The `#[immutables]` macro emits an `#[abi(immutables)]` layout in the contract artifact, mirroring the `#[abi(storage)]` pattern from aztec-nr. This allows TypeScript tooling to introspect the immutables struct without hardcoding field names or serialized lengths.
