@@ -31,10 +31,7 @@ import {
   deploySchnorrInitializerlessAccount,
   type DeploySchnorrInitializerlessAccountResult,
 } from "../src/ts/schnorr-initializerless-account/index.js";
-import {
-  deploySchnorrAccount,
-  SchnorrAccountContract,
-} from "../src/ts/schnorr-account/utils.js";
+import { deploySchnorrAccount } from "../src/ts/schnorr-account/utils.js";
 import { TokenContract } from "@defi-wonderland/aztec-standards/artifacts/src/artifacts/Token.js";
 import type { ContractFunctionInteraction } from "@aztec/aztec.js/contracts";
 
@@ -106,11 +103,14 @@ export default class AccountComparisonBenchmark extends Benchmark {
 
     // Prepare a fresh standard account deploy+initialize for benchmarking.
     // This measures the initialization cost that initializerless accounts avoid.
-    const standardAccountInitialize = SchnorrAccountContract.deploy(
-      wallet,
-      Fr.random(),
-      Fr.random(),
-    ) as unknown as ContractFunctionInteraction;
+    // We use createAccount() to register keys with PXE, then get the deploy method
+    // without sending — the profiler will simulate/prove/send it.
+    const benchAccountManager = await wallet.createAccount({
+      secret: Fr.random(),
+      salt: Fr.random(),
+    });
+    const standardAccountInitialize =
+      (await benchAccountManager.getDeployMethod()) as unknown as ContractFunctionInteraction;
 
     // Pre-fund both accounts with private tokens for transfer benchmarks
     const PREFUND_AMOUNT = 100_000n;

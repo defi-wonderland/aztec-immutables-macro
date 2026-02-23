@@ -325,7 +325,20 @@ const { instance, capsuleData } = await deployWithImmutables(
 
 ## Benchmarks
 
-Gate count comparison between the initializerless immutables account and the standard Schnorr account, measured on identical `Token` transfer operations:
+### Initialization cost eliminated
+
+The standard Schnorr account requires a deploy + initialize transaction that the initializerless pattern completely eliminates:
+
+| | Total tx | `constructor` circuit only |
+|---|---|---|
+| Standard Account: deploy + initialize | 516,258 gates | 8,636 gates |
+| Immutables Account | **No tx required** | **No tx required** |
+
+The constructor stores the signing key in `SinglePrivateImmutable` storage and delivers the note via `MessageDelivery.ONCHAIN_CONSTRAINED`. The initializerless account skips all of this — the key is committed in the contract address via salt.
+
+### Per-transaction overhead
+
+Gate count comparison on identical `Token` transfer operations:
 
 | Operation | Immutables Account | Standard Account | Difference |
 |-----------|-------------------|-----------------|------------|
@@ -340,7 +353,7 @@ The overhead comes entirely from the account entrypoint circuit — loading the 
 
 All other circuits (kernel, token, FPC) are identical. Gas costs are the same for both account types.
 
-> The +1,098 gates come from in-circuit salt verification: `poseidon2_hash(capsule_data)` + `assert_eq(salt, instance.salt)`. The standard account defers its key verification to the kernel circuit (note hash tree membership proof), so it doesn't pay this cost in the entrypoint. In exchange, the immutables pattern eliminates the initializer transaction, note delivery, and `#[noinitcheck]` annotations.
+> The +1,098 gates per-tx come from in-circuit salt verification: `poseidon2_hash(capsule_data)` + `assert_eq(salt, instance.salt)`. The standard account defers its key verification to the kernel circuit (note hash tree membership proof), so it doesn't pay this cost in the entrypoint. In exchange, the immutables pattern eliminates the 516,258-gate initializer transaction entirely.
 
 ## Artifact Introspection
 
