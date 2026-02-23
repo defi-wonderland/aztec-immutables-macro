@@ -2,17 +2,14 @@ name: Main Tests
 
 on:
   push:
-    branches: [main, dev]
+    branches:
+      - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref_name }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   tests:
-    uses: defi-wonderland/aztec-ci-actions/.github/workflows/run-tests.yml@dev
-    with:
-      run-benchmark: false
-      run-js-tests: true
-      run-noir-tests: true
+    uses: defi-wonderland/aztec-ci-actions/.github/workflows/run-tests.yml@v0
     secrets: inherit

@@ -36,7 +36,6 @@ import { SponsoredFeePaymentMethod } from "@aztec/aztec.js/fee/testing";
 import { getContractInstanceFromInstantiationParams } from "@aztec/aztec.js/contracts";
 import { SponsoredFPCContract } from "@aztec/noir-contracts.js/SponsoredFPC";
 import type { Wallet } from "@aztec/aztec.js/wallet";
-import { type AztecLMDBStoreV2 } from "@aztec/kv-store/lmdb-v2";
 import { setupTestSuite } from "./utils.js";
 
 /**
@@ -78,7 +77,7 @@ async function deployAndRegister(
 import { TokenContract } from "@defi-wonderland/aztec-standards/artifacts/src/artifacts/Token.js";
 
 describe("Initializerless Account", () => {
-  let store: AztecLMDBStoreV2;
+  let cleanup: () => Promise<void>;
   let wallet: TestWallet;
   let deployerAddress: AztecAddress;
 
@@ -94,10 +93,10 @@ describe("Initializerless Account", () => {
 
   beforeAll(async () => {
     ({
-      store,
+      cleanup,
       wallet,
       accounts: [deployerAddress],
-    } = await setupTestSuite("initializerless-account"));
+    } = await setupTestSuite());
 
     // Register the canonical SponsoredFPC for fee sponsorship
     // This allows accounts without fee juice to send transactions
@@ -117,7 +116,7 @@ describe("Initializerless Account", () => {
   });
 
   afterAll(async () => {
-    await store.delete();
+    await cleanup();
   });
 
   it("should mint to private balance of initializerless account", async () => {

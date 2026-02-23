@@ -12,7 +12,6 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { TestWallet } from "@aztec/test-wallet/server";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { Fr } from "@aztec/aztec.js/fields";
-import { type AztecLMDBStoreV2 } from "@aztec/kv-store/lmdb-v2";
 import {
   createSigningKeyCapsule,
   computeContractSalt,
@@ -34,20 +33,20 @@ const ACTUAL_SALT_1 = new Fr(12345n);
 const ACTUAL_SALT_2 = new Fr(54321n);
 
 describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", () => {
-  let store: AztecLMDBStoreV2;
+  let cleanup: () => Promise<void>;
   let wallet: TestWallet;
   let alice: AztecAddress;
 
   beforeAll(async () => {
     ({
-      store,
+      cleanup,
       wallet,
       accounts: [alice],
-    } = await setupTestSuite("schnorr-immutables"));
+    } = await setupTestSuite());
   });
 
   afterAll(async () => {
-    await store.delete();
+    await cleanup();
   });
 
   // Pure computation tests (no deployment, no published/unpublished distinction)

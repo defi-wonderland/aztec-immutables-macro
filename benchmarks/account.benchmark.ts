@@ -18,7 +18,6 @@ import { type ContractFunctionInteractionCallIntent } from "@aztec/aztec.js/auth
 import { getContractInstanceFromInstantiationParams } from "@aztec/aztec.js/contracts";
 import { SponsoredFeePaymentMethod } from "@aztec/aztec.js/fee/testing";
 import { Fr } from "@aztec/aztec.js/fields";
-import { type AztecLMDBStoreV2 } from "@aztec/kv-store/lmdb-v2";
 import { SponsoredFPCContract } from "@aztec/noir-contracts.js/SponsoredFPC";
 import { TestWallet } from "@aztec/test-wallet/server";
 import {
@@ -40,7 +39,7 @@ import { TokenContract } from "@defi-wonderland/aztec-standards/artifacts/src/ar
 // ---------------------------------------------------------------------------
 
 interface AccountBenchmarkContext extends BenchmarkContext {
-  store: AztecLMDBStoreV2;
+  cleanup: () => Promise<void>;
   wallet: TestWallet;
   deployer: AztecAddress;
   token: TokenContract;
@@ -55,10 +54,7 @@ interface AccountBenchmarkContext extends BenchmarkContext {
 
 export default class AccountComparisonBenchmark extends Benchmark {
   async setup(): Promise<AccountBenchmarkContext> {
-    const { store, wallet, accounts } = await setupTestSuite(
-      "bench-account",
-      true,
-    );
+    const { cleanup, wallet, accounts } = await setupTestSuite(true);
     const [deployer] = accounts;
 
     // Register the canonical SponsoredFPC for fee sponsorship.
@@ -115,7 +111,7 @@ export default class AccountComparisonBenchmark extends Benchmark {
       .send({ from: deployer });
 
     return {
-      store,
+      cleanup,
       wallet,
       deployer,
       token,
@@ -207,7 +203,6 @@ export default class AccountComparisonBenchmark extends Benchmark {
   }
 
   async teardown(context: AccountBenchmarkContext): Promise<void> {
-    await context.store.delete();
-    process.exit(0);
+    await context.cleanup();
   }
 }
