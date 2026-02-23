@@ -1,13 +1,9 @@
 [workspace]
 members = [
-    "src/nr/counter_contract",
     "src/nr/immutables_contract",
     "src/nr/schnorr_account_contract",
     "src/nr/schnorr_initializerless_account_contract",
 ]
 
 [benchmark]
-counter = "benchmarks/counter.benchmark.ts"
-immutables = "benchmarks/immutables.benchmark.ts"
-schnorr_initializerless_account = "benchmarks/schnorr_initializerless_account.benchmark.ts"
-account_counter_comparison = "benchmarks/account_counter_comparison.benchmark.ts"
+account = "benchmarks/account.benchmark.ts"

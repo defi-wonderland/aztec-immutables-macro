@@ -1,88 +1,58 @@
-import { Wallet } from "@aztec/aztec.js/wallet";
-import {
-  CounterContract,
-  CounterContractArtifact,
-} from "../artifacts/Counter.js";
+import { tmpdir } from "os";
+import { randomBytes } from "crypto";
+import { rmSync } from "fs";
+import { join } from "path";
+
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
-import { Contract } from "@aztec/aztec.js/contracts";
 import { createAztecNodeClient, waitForNode } from "@aztec/aztec.js/node";
 import {
   registerInitialLocalNetworkAccountsInWallet,
   TestWallet,
 } from "@aztec/test-wallet/server";
-import { createStore, type AztecLMDBStoreV2 } from "@aztec/kv-store/lmdb-v2";
 import { getPXEConfig } from "@aztec/pxe/server";
 
 const { NODE_URL = "http://localhost:8080" } = process.env;
-const { PXE_VERSION = "2" } = process.env;
-const pxeVersion = parseInt(PXE_VERSION);
 
 /**
- * Setup the store, node, wallet and accounts for tests.
- * @param suffix - optional - The suffix to use for the store directory.
+ * Setup the node, wallet and accounts for tests.
  * @param proverEnabled - optional - Whether to enable the prover.
- * @returns The store, wallet and accounts. Call `store.delete()` in afterAll to cleanup.
+ * @returns The wallet, accounts and a cleanup function. Call `cleanup()` in afterAll to teardown.
  */
-export async function setupTestSuite(
-  suffix?: string,
-  proverEnabled: boolean = false,
-) {
+export async function setupTestSuite(proverEnabled: boolean = false) {
   const node = createAztecNodeClient(NODE_URL);
   await waitForNode(node);
 
   const l1Contracts = await node.getL1ContractAddresses();
   const config = getPXEConfig();
-  const storeDir = suffix ? `store-${suffix}` : "store";
+  const dataDirectory = join(
+    tmpdir(),
+    `immutables-macro-${randomBytes(8).toString("hex")}`,
+  );
 
-  const fullConfig = {
+  const pxeConfig = {
     ...config,
     l1Contracts,
-    dataDirectory: storeDir,
+    dataDirectory,
     dataStoreMapSizeKb: 1e6,
+    proverEnabled,
   };
 
-  // Create the store for manual cleanups
-  const store: AztecLMDBStoreV2 = await createStore("pxe_data", pxeVersion, {
-    dataDirectory: storeDir,
-    dataStoreMapSizeKb: 1e6,
-  });
-
-  const wallet: TestWallet = await TestWallet.create(
-    node,
-    { ...fullConfig, proverEnabled },
-    { store },
-  );
+  const wallet: TestWallet = await TestWallet.create(node, pxeConfig);
 
   const accounts: AztecAddress[] =
     await registerInitialLocalNetworkAccountsInWallet(wallet);
 
+  const cleanup = async () => {
+    await wallet.stop();
+    try {
+      rmSync(dataDirectory, { recursive: true, force: true });
+    } catch {}
+  };
+
   return {
-    store,
     node,
     wallet,
     accounts,
+    cleanup,
   };
-}
-
-/**
- * Deploys the Counter contract.
- * @param deployer - The wallet to deploy the contract with.
- * @param owner - The address of the owner of the contract.
- * @returns A deployed contract instance.
- */
-export async function deployCounter(
-  deployer: Wallet,
-  owner: AztecAddress,
-): Promise<CounterContract> {
-  const deployerAddress = (await deployer.getAccounts())[0]!.item;
-  const deployMethod = Contract.deploy(
-    deployer,
-    CounterContractArtifact,
-    [owner],
-    "constructor", // not actually needed since it's the default constructor
-  );
-  const contract = await deployMethod.send({
-    from: deployerAddress,
-  });
-  return contract as CounterContract;
 }

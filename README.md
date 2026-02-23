@@ -122,10 +122,10 @@ The `store()` method validates `poseidon2_hash(capsule_data) == instance.salt` b
 
 ### 5. Deploy and use (TypeScript)
 
-This repo provides TypeScript utilities in `src/ts/immutables/utils.ts` that handle the full deployment lifecycle:
+This repo provides TypeScript utilities in `src/ts/immutables/index.ts` that handle the full deployment lifecycle:
 
 ```typescript
-import { deployWithImmutables } from "./immutables/utils.js";
+import { deployWithImmutables } from "@defi-wonderland/immutables-macro/immutables";
 
 // Deploy — handles salt derivation, PXE registration, publication,
 // and persistent capsule storage automatically
@@ -247,7 +247,7 @@ When importing this library as an npm package, deploying an initializerless Schn
 ```typescript
 import {
   deploySchnorrInitializerlessAccount,
-} from "immutables-macro/schnorr-initializerless-account";
+} from "@defi-wonderland/immutables-macro/schnorr-initializerless-account";
 
 // Deploy — one call handles everything:
 //   key derivation, salt computation, PXE registration,
@@ -283,7 +283,7 @@ To pre-compute the address without deploying:
 ```typescript
 import {
   computeSchnorrAccountAddress,
-} from "immutables-macro/schnorr-initializerless-account";
+} from "@defi-wonderland/immutables-macro/schnorr-initializerless-account";
 
 const { address, capsuleData } = await computeSchnorrAccountAddress(signingKey);
 // Send funds to address, deploy later
@@ -303,7 +303,7 @@ await deploySchnorrInitializerlessAccount(wallet, {
 For generic contracts (not account-specific), use `deployWithImmutables` with `serializeFromLayout` to build a typed wrapper over your own Noir immutables struct. For example, a private recovery module that commits a recovery address and secret hash into its identity:
 
 ```typescript
-import { deployWithImmutables, serializeFromLayout } from "immutables-macro/immutables/utils";
+import { deployWithImmutables, serializeFromLayout } from "@defi-wonderland/immutables-macro/immutables";
 import { PrivateRecoveryModuleArtifact } from "./artifacts/PrivateRecoveryModule.js";
 
 // Example Noir struct:
@@ -323,6 +323,38 @@ const { instance, capsuleData } = await deployWithImmutables(
 );
 ```
 
+## Benchmarks
+
+### Initialization cost eliminated
+
+The standard Schnorr account requires a deploy + initialize transaction that the initializerless pattern completely eliminates:
+
+| | Total tx | `constructor` circuit only |
+|---|---|---|
+| Standard Account: deploy + initialize | 516,258 gates | 8,636 gates |
+| Immutables Account | **No tx required** | **No tx required** |
+
+The constructor stores the signing key in `SinglePrivateImmutable` storage and delivers the note via `MessageDelivery.ONCHAIN_CONSTRAINED`. The initializerless account skips all of this — the key is committed in the contract address via salt.
+
+### Per-transaction overhead
+
+Gate count comparison on identical `Token` transfer operations:
+
+| Operation | Immutables Account | Standard Account | Difference |
+|-----------|-------------------|-----------------|------------|
+| `transfer_private_to_private` | 550,774 | 549,676 | +1,098 (+0.20%) |
+| `transfer_private_to_public` | 588,359 | 587,261 | +1,098 (+0.19%) |
+
+The overhead comes entirely from the account entrypoint circuit — loading the signing key from the CapsuleStore instead of `SinglePrivateImmutable` storage:
+
+| Circuit | Immutables | Standard | Difference |
+|---------|-----------|----------|------------|
+| `entrypoint` | 55,546 | 54,448 | **+1,098 (+2.0%)** |
+
+All other circuits (kernel, token, FPC) are identical. Gas costs are the same for both account types.
+
+> The +1,098 gates per-tx come from in-circuit salt verification: `poseidon2_hash(capsule_data)` + `assert_eq(salt, instance.salt)`. The standard account defers its key verification to the kernel circuit (note hash tree membership proof), so it doesn't pay this cost in the entrypoint. In exchange, the immutables pattern eliminates the 516,258-gate initializer transaction entirely.
+
 ## Artifact Introspection
 
 The `#[immutables]` macro emits an `#[abi(immutables)]` layout in the contract artifact, mirroring the `#[abi(storage)]` pattern from aztec-nr. This allows TypeScript tooling to introspect the immutables struct without hardcoding field names or serialized lengths.
@@ -333,7 +365,7 @@ The layout includes:
 - **`fields`**: Map of field names to their index in the serialized array
 
 ```typescript
-import { getImmutablesLayout } from "./immutables/utils.js";
+import { getImmutablesLayout } from "@defi-wonderland/immutables-macro/immutables";
 
 const layout = getImmutablesLayout(MyContractArtifact);
 // layout = {

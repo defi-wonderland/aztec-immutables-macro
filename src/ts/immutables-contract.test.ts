@@ -2,7 +2,6 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { TestWallet } from "@aztec/test-wallet/server";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { Fr } from "@aztec/aztec.js/fields";
-import { type AztecLMDBStoreV2 } from "@aztec/kv-store/lmdb-v2";
 import {
   deployImmutablesContract,
   deployMixedUsageContract,
@@ -26,20 +25,20 @@ const ACTUAL_SALT_2 = new Fr(54321n);
 const INITIAL_COUNTER = 42n;
 
 describe("Immutables Contract - Initializerless Pattern", () => {
-  let store: AztecLMDBStoreV2;
+  let cleanup: () => Promise<void>;
   let wallet: TestWallet;
   let alice: AztecAddress;
 
   beforeAll(async () => {
     ({
-      store,
+      cleanup,
       wallet,
       accounts: [alice],
-    } = await setupTestSuite("immutables"));
+    } = await setupTestSuite());
   });
 
   afterAll(async () => {
-    await store.delete();
+    await cleanup();
   });
 
   // Pure computation tests (no deployment, no published/unpublished distinction)
@@ -230,20 +229,20 @@ describe("Immutables Contract - Initializerless Pattern", () => {
 });
 
 describe("Immutables Contract - Mixed Usage (Immutables + Storage)", () => {
-  let store: AztecLMDBStoreV2;
+  let cleanup: () => Promise<void>;
   let wallet: TestWallet;
   let alice: AztecAddress;
 
   beforeAll(async () => {
     ({
-      store,
+      cleanup,
       wallet,
       accounts: [alice],
-    } = await setupTestSuite("mixed-usage"));
+    } = await setupTestSuite());
   });
 
   afterAll(async () => {
-    await store.delete();
+    await cleanup();
   });
 
   it("should deploy contract with storage initialized", async () => {

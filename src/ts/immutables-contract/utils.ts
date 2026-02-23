@@ -4,8 +4,8 @@ import {
   ImmutablesContractContract,
   ImmutablesContractContractArtifact,
 } from "../../artifacts/ImmutablesContract.js";
-import * as generic from "../immutables/utils.js";
-import type { DeployWithImmutablesOptions } from "../immutables/utils.js";
+import * as generic from "../immutables/index.js";
+import type { DeployWithImmutablesOptions } from "../immutables/index.js";
 
 // Re-export from generic
 export {
@@ -14,7 +14,7 @@ export {
   computeContractSalt,
   getImmutablesLayout,
   serializeFromLayout,
-} from "../immutables/utils.js";
+} from "../immutables/index.js";
 
 /**
  * Immutables type matching the Noir struct:

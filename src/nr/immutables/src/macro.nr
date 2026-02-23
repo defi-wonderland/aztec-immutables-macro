@@ -189,7 +189,7 @@ pub comptime fn immutables(s: TypeDefinition) -> Quoted {
             /// Note: capsule_data is passed as a parameter instead of using capsules::load
             /// because the PXE's utility simulation path does not forward transient capsules
             /// to the UtilityExecutionOracle (hardcoded [] at contract_function_simulator.ts).
-            /// See: https://github.com/AztecProtocol/aztec-packages/blob/4047b6e/yarn-project/pxe/src/contract_function_simulator/contract_function_simulator.ts#L275
+            /// See: https://github.com/AztecProtocol/aztec-packages/blob/v4.0.0-devnet.1-patch.0/yarn-project/pxe/src/contract_function_simulator/contract_function_simulator.ts#L275
             /// TODO: Once that changes, switch to capsules::load here and remove the parameter.
             ///
             /// ## Arguments
@@ -222,10 +222,12 @@ pub comptime fn immutables(s: TypeDefinition) -> Quoted {
 
 /// Generates the `#[abi(immutables)]` layout for the contract artifact.
 ///
-/// Mirrors the `#[abi(storage)]` pattern from aztec-nr (`aztec/src/macros/storage.nr:96-109`).
+/// Mirrors the `#[abi(storage)]` pattern from aztec-nr:
+/// https://github.com/AztecProtocol/aztec-packages/blob/v4.0.0-devnet.1-patch.0/noir-projects/aztec-nr/aztec/src/macros/storage.nr#L109-L112
+///
 /// The Noir compiler collects all `#[abi(tag)]` globals into `outputs.globals[tag]` in the
-/// artifact JSON (`noirc_driver/src/lib.rs:638-648`). TypeScript can then parse the layout
-/// to introspect the immutables struct (field names, indices, serialized length).
+/// artifact JSON. TypeScript can then parse the layout to introspect the immutables struct
+/// (field names, indices, serialized length).
 ///
 /// ## Arguments
 ///
@@ -297,7 +299,7 @@ comptime fn generate_immutables_layout(s: TypeDefinition, serialized_len: Quoted
 /// for capsule array sizing, since `Serialize::N == Deserialize::N` for the same struct.
 ///
 /// Based on `derive_deserialize` from aztec-packages:
-/// `noir-protocol-circuits/crates/serde/src/serialization.nr`
+/// https://github.com/AztecProtocol/aztec-packages/blob/v4.0.0-devnet.1-patch.0/noir-projects/noir-protocol-circuits/crates/serde/src/serialization.nr#L243-L325
 ///
 /// We use a custom implementation instead of `aztec::protocol::meta::derive_deserialize` because
 /// that function uses an unqualified `Deserialize` reference in `stream_deserialize` for
