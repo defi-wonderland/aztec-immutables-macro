@@ -1,18 +1,18 @@
-# Constants Macro
+# Immutables Macro
 
-A Noir macro for committing immutable constants into an Aztec contract's address, eliminating the need for initializer functions.
+A Noir macro for committing immutables into an Aztec contract's address, eliminating the need for initializer functions.
 
 ## Overview
 
-On Aztec, contracts that need immutable values — such as an account contract's signing public key — must currently use an initializer function that writes to private storage (e.g. `SinglePrivateImmutable`). This requires a constructor transaction, note delivery for setup, and initialization checks on subsequent function calls.
+On Aztec, contracts that need immutable values — such as an account contract's signing public key — must currently use an initializer function that writes to private storage (e.g. `SinglePrivateImmutable`). This requires an initialization transaction, note delivery for setup, and initialization checks on subsequent function calls.
 
-The `#[constants]` macro offers a different approach: constants are encoded into the contract's `salt`, which is part of the address derivation. At runtime, constants are loaded from capsule storage and verified against the salt committed in the contract address. The constants are cryptographically fixed to the contract address.
+The `#[immutables]` macro offers a different approach: immutables are committed-to in the contract's `salt`, which is part of the address derivation. At runtime, immutables are loaded from capsule storage and verified against their commitment in the address.
 
-The first use case is an **initializerless Schnorr account contract** that stores its signing public key as a constant, removing the need for an initializer entirely.
+This repo includes an **initializerless Schnorr account contract** as an example use case.
 
 ## How It Works
 
-A contract's address is derived from public keys, contract class ID, salt, initialization hash, and deployer. The `salt` has no protocol-level constraints — it's a free field in the address commitment. We encode constants into it:
+A contract's address is derived from public keys, contract class ID, salt, initialization hash, and deployer. The `salt` has no protocol-level constraints — it's a free field in the address commitment. We encode immutables into it:
 
 ```
 salt = poseidon2_hash([actual_salt, constant_0, constant_1, ...])
@@ -22,19 +22,21 @@ Where `actual_salt` is a random nonce for address uniqueness.
 
 **Deployment (TypeScript):**
 
-1. Serialize the constants into fields (e.g., a public key becomes `[x, y]`).
+1. Serialize the immutables into fields (e.g., a public key becomes `[x, y]`).
 2. Generate a random `actual_salt`.
 3. Compute `salt = poseidon2_hash([actual_salt, constant_0, constant_1, ...])`.
-4. Store `[actual_salt, constant_0, constant_1, ...]` in PXE capsule storage at a well-known slot.
-5. Deploy the contract with the derived salt — no initializer needed.
+4. Deploy the contract with the derived salt — no initializer needed.
+5. Persist `[actual_salt, constant_0, constant_1, ...]` to PXE's CapsuleStore via `store_immutables().simulate()`.
 
-**Verification (Noir):**
+After step 5, all subsequent calls to `Immutables::init()` read from the persistent store automatically — no capsules need to be attached to transactions.
+
+**Reconstruction and verification (Noir):**
 
 1. Load capsule data from an unconstrained oracle.
 2. Compute `salt = poseidon2_hash(capsule_data)`.
 3. Fetch the contract instance via `get_contract_instance(address)`.
 4. Assert that the computed salt matches `instance.salt`.
-5. Deserialize and return the constants.
+5. Deserialize and return the immutables.
 
 Even though capsule data comes from an unconstrained oracle, security is guaranteed because `salt` is part of the contract address computation. If the wrong data is provided, `poseidon2_hash` won't match `instance.salt`.
 
@@ -46,77 +48,190 @@ In your contract's `Nargo.toml`:
 
 ```toml
 [dependencies]
-constants = { path = "../constants" }
+immutables = { git = "https://github.com/defi-wonderland/constants-macro", tag = "v4.0.0-devnet.1-patch.0" }
 ```
 
-### 2. Define your constants
+### 2. Define your immutables
 
 ```noir
-use constants::constants;
+use immutables::immutables;
 
-#[derive(Deserialize)]
-#[constants]
-pub struct Constants {
+#[immutables]
+pub struct Immutables {
     pub signing_public_key: PublicKey,
 }
 ```
 
 Requirements:
-- The struct **must** be named `Constants`
-- `#[derive(Deserialize)]` is required
+- The struct **must** be named `Immutables`
 - Fields can be any type that implements `Serialize` and `Deserialize`
 
-### 3. Use constants in your contract
+The macro auto-derives `Serialize` and `Deserialize` if not already implemented.
 
-The macro generates `Constants::init()` for constrained contexts and `Constants::init_unconstrained()` for utility functions.
+### 3. Use immutables in your contract
 
-```rust
+The macro generates:
+- `Immutables::init(context)` — constrained load + verification (for private functions and `#[contract_library_method]`)
+- `Immutables::init_unconstrained(context)` — unconstrained load (for utility functions)
+- `Immutables::store(context, capsule_data)` — persists immutables to PXE's CapsuleStore with validation
+- `Serialize` / `Deserialize` implementations (if not already implemented)
+- `#[abi(immutables)]` layout for TypeScript artifact introspection
+
+```noir
 // In a #[external("private")] function
 #[external("private")]
 fn get_signing_public_key() -> pub (Field, Field) {
-    let constants = Constants::init(self.context);
-    let public_key = constants.signing_public_key;
+    let immutables = Immutables::init(self.context);
+    let public_key = immutables.signing_public_key;
     (public_key.x, public_key.y)
 }
 
 // In a #[contract_library_method] function
 #[contract_library_method]
 fn is_valid_impl(context: &mut PrivateContext, outer_hash: Field) -> bool {
-    let constants = Constants::init(context);
-    let public_key = constants.signing_public_key;
+    let immutables = Immutables::init(context);
+    let public_key = immutables.signing_public_key;
     // verify signature with public_key...
 }
 
 // In a utility (unconstrained) function
 #[external("utility")]
 unconstrained fn lookup_validity(consumer: AztecAddress, inner_hash: Field) -> bool {
-    let constants = Constants::init_unconstrained(self.context);
-    let public_key = constants.signing_public_key;
+    let immutables = Immutables::init_unconstrained(self.context);
+    let public_key = immutables.signing_public_key;
     // ...
 }
 ```
 
+### 4. Add a `store_immutables` wrapper (Noir)
+
+The macro generates `Immutables::store()` which persists immutables to the PXE's CapsuleStore. However, it currently cannot auto-emit `#[external("utility")]` functions (see [Future Improvements](#future-improvements-for-aztec)). Each contract needs a one-line wrapper:
+
+```noir
+// TODO: Should be auto-generated by the macro or enshrined in aztec-nr.
+// See "Future Improvements" section.
+#[external("utility")]
+unconstrained fn store_immutables(capsule_data: [Field; 1 + N]) {
+    Immutables::store(self.context, capsule_data);
+}
+```
+
+Where `N` is the total serialized length of your immutables (e.g., `3` for a struct with two `Field` values: 1 for `actual_salt` + 2 for the fields).
+
+The `store()` method validates `poseidon2_hash(capsule_data) == instance.salt` before persisting, so corrupt data cannot be stored. This function can be called at any time — during deployment, for PXE recovery after data loss, or when migrating to a new PXE.
+
+### 5. Deploy and use (TypeScript)
+
+This repo provides TypeScript utilities in `src/ts/immutables/index.ts` that handle the full deployment lifecycle:
+
+```typescript
+import { deployWithImmutables } from "@defi-wonderland/immutables-macro/immutables";
+
+// Deploy — handles salt derivation, PXE registration, publication,
+// and persistent capsule storage automatically
+const { instance, capsuleData } = await deployWithImmutables(
+  wallet, MyContractArtifact, [field1, field2]
+);
+```
+
+`deployWithImmutables` automatically:
+1. Generates a random `actual_salt` and computes the derived salt
+2. Creates and registers the contract instance with the PXE
+3. Validates serialized immutables against the `#[abi(immutables)]` layout in the artifact
+4. Calls `store_immutables().simulate()` to persist immutables to the PXE's CapsuleStore
+5. Publishes the contract class and instance on-chain (unless skipped)
+
+The returned `capsuleData` is `[actualSalt, ...serializedImmutables]` — persist this externally for backup (see [Re-storing immutables](#re-storing-immutables-pxe-recovery)).
+
+After deployment, **no capsules need to be attached to transactions**. The `init()` function reads from the persistent store:
+
+```typescript
+// No .with({ capsules }) needed — data is in the persistent store
+await contract.methods.my_function().send({ from: caller });
+```
+
+Transient capsules (`.with({ capsules: [...] })`) still work and take priority over the persistent store, useful for testing or overriding data.
+
+### Re-storing immutables (PXE recovery)
+
+If the PXE's data is lost (e.g., browser wallet clears state, migrating to a new PXE), you can re-store the immutables by calling `store_immutables` again with the `capsuleData` returned from deployment:
+
+```typescript
+// capsuleData was returned by deployWithImmutables — persist it externally for this scenario
+await contract.methods.store_immutables(capsuleData).simulate({ from: caller });
+```
+
+The `store()` method validates the data against the contract's salt before persisting, so it's safe to call at any time. This is why persisting `capsuleData` externally (e.g., in a database or local storage) is recommended.
+
+> **Warning — Capsule data loss breaks contract functionality**
+>
+> The `capsuleData` (`[actualSalt, ...serializedImmutables]`) is required for any function that reads immutables. If this data is lost from the PXE and no external backup exists, those functions will fail permanently — the capsule content is verified against the contract's salt at runtime and cannot be reconstructed without the original values. Always persist `capsuleData` externally after deployment.
+
+### Published vs unpublished deployment
+
+Contracts deployed with the immutables pattern can be either **published** (on-chain) or **unpublished** (PXE-only):
+
+- **Unpublished** (default): The contract is only registered in the local PXE. Private execution still works because it's validated locally — the contract never needs to be visible on-chain. This is useful for account contracts that only use private functions.
+- **Published** (`publishInstance: true`): The contract instance is registered on-chain. Other parties can discover and interact with the contract.
+
+> **Warning — On-chain publication is opt-in**
+>
+> `deployWithImmutables` does **not** publish the contract class or instance on-chain by default. If your contract has public functions or needs to be discoverable by other parties, pass `publishClass: true` and `publishInstance: true` explicitly.
+
+```typescript
+// Unpublished deployment (default — PXE-only)
+const result = await deployWithImmutables(wallet, artifact, serializedImmutables);
+
+// Published deployment (on-chain)
+const result = await deployWithImmutables(wallet, artifact, serializedImmutables, {
+  publishClass: true,
+  publishInstance: true,
+});
+```
+
 ### Compatibility with storage
 
-The constants pattern is compatible with `#[storage]`. Both can coexist in the same contract — constants are verified against `salt`, while storage is managed via the state tree. See `src/nr/constants_contract` for an example of mixed usage.
+The immutables pattern is compatible with `#[storage]`. Both can coexist in the same contract — immutables are verified against `salt`, while storage is managed via the state tree. See `src/nr/immutables_contract` for an example of mixed usage.
+
+For contracts that need both immutables and an initializer (e.g., to set up mutable storage), pass the `initializer` and `initializerArgs` options to `deployWithImmutables`. This computes the correct `initializationHash` while still deriving the salt from immutables:
+
+```typescript
+const result = await deployWithImmutables(wallet, artifact, serializedImmutables, {
+  initializer: "initialize",
+  initializerArgs: [initialCounter],
+});
+```
+
+### No `#[noinitcheck]` needed
+
+With the standard initializer pattern, any function that might be called before initialization requires the `#[noinitcheck]` attribute to bypass the initialization check — otherwise the contract rejects calls until `constructor()` has been executed. This means you need to carefully annotate functions like `entrypoint` and `verify_private_authwit`.
+
+With the immutables pattern, there is no initializer at all (`initializationHash` is zero), so the contract never expects initialization. Functions can be called immediately after deployment without any `#[noinitcheck]` annotations.
+
+However, if your contract uses **both** immutables and a standard initializer (mixed usage), you still need `#[noinitcheck]` on functions that may be called before the initializer runs.
 
 ## Reference Implementation: Initializerless Schnorr Account
 
-The `schnorr_initializerless_account_contract` demonstrates the pattern applied to an account contract. It replaces `SinglePrivateImmutable<PublicKeyNote>` + initializer with a `Constants` struct:
+The `schnorr_initializerless_account_contract` demonstrates the pattern applied to an account contract. It replaces `SinglePrivateImmutable<PublicKeyNote>` + initializer with an `Immutables` struct:
 
-```rust
-use constants::constants;
+```noir
+use immutables::immutables;
 
-#[derive(Deserialize)]
-#[constants]
-pub struct Constants {
+#[immutables]
+pub struct Immutables {
     pub public_key: PublicKey,
+}
+
+// Required wrapper — see "Future Improvements" for auto-generation
+#[external("utility")]
+unconstrained fn store_immutables(capsule_data: [Field; 3]) {
+    Immutables::store(self.context, capsule_data);
 }
 
 #[contract_library_method]
 fn is_valid_impl(context: &mut PrivateContext, outer_hash: Field) -> bool {
-    let constants = Constants::init(context);
-    let public_key = constants.public_key;
+    let immutables = Immutables::init(context);
+    let public_key = immutables.public_key;
     // verify Schnorr signature...
 }
 ```
@@ -125,22 +240,201 @@ No constructor, no note delivery, no `#[noinitcheck]`. The contract is immediate
 
 A standard `schnorr_account_contract` using the traditional initializer pattern is included for comparison.
 
+### TypeScript Usage (npm package)
+
+When importing this library as an npm package, deploying an initializerless Schnorr account is a single function call:
+
+```typescript
+import {
+  deploySchnorrInitializerlessAccount,
+} from "@defi-wonderland/immutables-macro/schnorr-initializerless-account";
+
+// Deploy — one call handles everything:
+//   key derivation, salt computation, PXE registration,
+//   store_immutables persistence, and optional on-chain publication
+const {
+  contract,        // contract handle — call methods on it
+  account,         // AccountWithSecretKey — register with your wallet
+  address,         // the deterministic contract address
+  capsuleData,     // [actualSalt, pubkey.x, pubkey.y] — persist for backup
+  signingPublicKey,
+} = await deploySchnorrInitializerlessAccount(wallet);
+
+// Register the account with your wallet for signing
+// (wallet-specific — depends on your wallet implementation)
+wallet.registerAccount(account);
+
+// Use it — no capsules needed, data is in PXE persistent store
+await contract.methods.get_signing_public_key().simulate({ from: caller });
+
+// Persist capsuleData externally for PXE recovery
+await db.save("account-backup", { address, capsuleData });
+```
+
+For PXE recovery after data loss:
+
+```typescript
+const saved = await db.load("account-backup");
+await contract.methods.store_immutables(saved.capsuleData).simulate({ from: caller });
+```
+
+To pre-compute the address without deploying:
+
+```typescript
+import {
+  computeSchnorrAccountAddress,
+} from "@defi-wonderland/immutables-macro/schnorr-initializerless-account";
+
+const { address, capsuleData } = await computeSchnorrAccountAddress(signingKey);
+// Send funds to address, deploy later
+```
+
+For custom deployment options:
+
+```typescript
+await deploySchnorrInitializerlessAccount(wallet, {
+  secretKey: mySecretKey,        // use specific secret instead of random
+  actualSalt: mySalt,            // deterministic salt instead of random
+  publishClass: true,            // publish contract class on-chain
+  publishInstance: true,         // publish contract instance on-chain
+});
+```
+
+For generic contracts (not account-specific), use `deployWithImmutables` with `serializeFromLayout` to build a typed wrapper over your own Noir immutables struct. For example, a private recovery module that commits a recovery address and secret hash into its identity:
+
+```typescript
+import { deployWithImmutables, serializeFromLayout } from "@defi-wonderland/immutables-macro/immutables";
+import { PrivateRecoveryModuleArtifact } from "./artifacts/PrivateRecoveryModule.js";
+
+// Example Noir struct:
+//   #[immutables]
+//   pub struct Immutables {
+//       pub recovery_address: AztecAddress,
+//       pub secret_hash: Field,
+//   }
+
+const serialized = serializeFromLayout(PrivateRecoveryModuleArtifact, {
+  recovery_address: recoveryAddress.toField(),
+  secret_hash: secretHash,
+});
+
+const { instance, capsuleData } = await deployWithImmutables(
+  wallet, PrivateRecoveryModuleArtifact, serialized
+);
+```
+
+## Benchmarks
+
+### Initialization cost eliminated
+
+The standard Schnorr account requires a deploy + initialize transaction that the initializerless pattern completely eliminates:
+
+| | Total tx | `constructor` circuit only |
+|---|---|---|
+| Standard Account: deploy + initialize | 516,258 gates | 8,636 gates |
+| Immutables Account | **No tx required** | **No tx required** |
+
+The constructor stores the signing key in `SinglePrivateImmutable` storage and delivers the note via `MessageDelivery.ONCHAIN_CONSTRAINED`. The initializerless account skips all of this — the key is committed in the contract address via salt.
+
+### Per-transaction overhead
+
+Gate count comparison on identical `Token` transfer operations:
+
+| Operation | Immutables Account | Standard Account | Difference |
+|-----------|-------------------|-----------------|------------|
+| `transfer_private_to_private` | 550,774 | 549,676 | +1,098 (+0.20%) |
+| `transfer_private_to_public` | 588,359 | 587,261 | +1,098 (+0.19%) |
+
+The overhead comes entirely from the account entrypoint circuit — loading the signing key from the CapsuleStore instead of `SinglePrivateImmutable` storage:
+
+| Circuit | Immutables | Standard | Difference |
+|---------|-----------|----------|------------|
+| `entrypoint` | 55,546 | 54,448 | **+1,098 (+2.0%)** |
+
+All other circuits (kernel, token, FPC) are identical. Gas costs are the same for both account types.
+
+> The +1,098 gates per-tx come from in-circuit salt verification: `poseidon2_hash(capsule_data)` + `assert_eq(salt, instance.salt)`. The standard account defers its key verification to the kernel circuit (note hash tree membership proof), so it doesn't pay this cost in the entrypoint. In exchange, the immutables pattern eliminates the 516,258-gate initializer transaction entirely.
+
+## Artifact Introspection
+
+The `#[immutables]` macro emits an `#[abi(immutables)]` layout in the contract artifact, mirroring the `#[abi(storage)]` pattern from aztec-nr. This allows TypeScript tooling to introspect the immutables struct without hardcoding field names or serialized lengths.
+
+The layout includes:
+- **`contract_name`**: The contract module name
+- **`serialized_len`**: Total number of `Fr` elements after serialization (accounts for nested struct flattening)
+- **`fields`**: Map of field names to their index in the serialized array
+
+```typescript
+import { getImmutablesLayout } from "@defi-wonderland/immutables-macro/immutables";
+
+const layout = getImmutablesLayout(MyContractArtifact);
+// layout = {
+//   serializedLen: 2,
+//   fields: {
+//     signing_key_x: { index: 0 },
+//     signing_key_y: { index: 1 },
+//   }
+// }
+```
+
+`deployWithImmutables` uses this layout to validate that the serialized immutables array has the correct length before deploying.
+
+## Future Improvements for Aztec
+
+The following improvements would benefit from changes in aztec-packages:
+
+### 1. Auto-generate `store_immutables` from the macro
+
+Currently, each contract must define a manual `#[external("utility")] store_immutables` wrapper that delegates to `Immutables::store()`. This is because the `#[immutables]` macro runs on a struct definition, and struct macros cannot emit `#[external("utility")]` functions — the `#[aztec]` module macro's `check_all_functions_have_context_macro` rejects functions that weren't processed through the `external_functions_registry`.
+
+If enshrined in aztec-nr, the `#[aztec]` module macro could detect `#[immutables]` structs and auto-inject the `store_immutables` function, eliminating the manual wrapper entirely.
+
+### 2. Auto-inject `Immutables::init()` into function contexts
+
+Similar to how `#[storage]` makes `self.storage` available, the `#[aztec]` module macro could:
+1. Detect the presence of an `#[immutables]` struct (via a comptime registry like `HAS_STORAGE`)
+2. Auto-inject `let immutables = Immutables::init(context);` at the start of `#[external("private")]` functions
+3. Make immutables accessible as `self.immutables`
+
+This would allow direct access without explicit loading:
+
+```noir
+#[external("private")]
+fn my_function() {
+    let key = self.immutables.signing_key_x; // No explicit Immutables::init() needed
+}
+```
+
+### 3. Forward transient capsules in utility simulation
+
+The PXE's utility simulation path currently [does not forward transient capsules](https://github.com/AztecProtocol/aztec-packages/blob/4047b6e/yarn-project/pxe/src/contract_function_simulator/contract_function_simulator.ts#L275) to the `UtilityExecutionOracle`. This is why `store()` takes `capsule_data` as a parameter instead of using `capsules::load` internally. If this changes, `store()` could load the data from a transient capsule, making the wrapper even simpler (no parameters needed).
+
+### 4. Enshrine `#[abi(immutables)]` parsing in stdlib
+
+The `getImmutablesLayout()` function could be added to `@aztec/stdlib/abi` alongside `getStorageLayout()`, allowing any Aztec application to introspect immutables without importing this library.
+
 ## Project Structure
 
 ```
-src/nr/
-├── constants/                # The #[constants] macro library
-│   └── src/macro.nr
-├── schnorr_initializerless_account_contract/  # Initializerless Schnorr account
-│   └── src/
-│       ├── main.nr
-│       └── public_key.nr
-├── schnorr_account_contract/                  # Standard Schnorr account (for comparison)
-│   └── src/
-│       ├── main.nr
-│       └── public_key_note.nr
-└── constants_contract/                        # Example: constants + storage coexistence
-    └── src/main.nr
+src/
+├── nr/
+│   ├── immutables/                               # The #[immutables] macro library
+│   │   └── src/macro.nr
+│   ├── schnorr_initializerless_account_contract/  # Initializerless Schnorr account
+│   │   └── src/
+│   │       ├── main.nr
+│   │       └── public_key.nr
+│   ├── schnorr_account_contract/                  # Standard Schnorr account (for comparison)
+│   │   └── src/
+│   │       ├── main.nr
+│   │       └── public_key_note.nr
+│   └── immutables_contract/                       # Example: immutables + storage coexistence
+│       └── src/main.nr
+└── ts/
+    ├── immutables/                    # Generic TS utilities (salt, capsule, deploy)
+    ├── immutables-contract/           # Typed wrapper for ImmutablesContract
+    ├── schnorr-initializerless-account/  # Account contract TS integration
+    └── schnorr-account/               # Standard account utilities (for comparison)
 ```
 
 ## Development

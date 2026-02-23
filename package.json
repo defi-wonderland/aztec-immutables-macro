@@ -1,12 +1,36 @@
 {
-  "name": "aztec-boilerplate",
-  "version": "4.0.0-nightly.20260204",
-  "repository": "https://github.com/defi-wonderland/initializerless-constants.git",
+  "name": "@defi-wonderland/immutables-macro",
+  "version": "4.0.0-devnet.1-patch.0",
+  "repository": "https://github.com/defi-wonderland/immutables-macro.git",
   "author": "Wonderland",
   "license": "MIT",
   "type": "module",
+  "main": "dist/ts/index.js",
+  "types": "dist/ts/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/ts/index.d.ts",
+      "import": "./dist/ts/index.js"
+    },
+    "./immutables": {
+      "types": "./dist/ts/immutables/index.d.ts",
+      "import": "./dist/ts/immutables/index.js"
+    },
+    "./schnorr-initializerless-account": {
+      "types": "./dist/ts/schnorr-initializerless-account/index.d.ts",
+      "import": "./dist/ts/schnorr-initializerless-account/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "clean": "rm -rf ./src/artifacts ./target codegenCache.json",
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf ./src/artifacts ./target codegenCache.json dist",
     "codegen": "aztec codegen target --outdir src/artifacts -f",
     "compile": "aztec compile",
     "test": "yarn test:nr && yarn test:js",
@@ -21,14 +45,15 @@
     "*.{js,ts}": "prettier --write -u"
   },
   "dependencies": {
-    "@aztec/accounts": "4.0.0-nightly.20260204",
-    "@aztec/aztec.js": "4.0.0-nightly.20260204",
-    "@aztec/entrypoints": "4.0.0-nightly.20260204",
-    "@aztec/noir-contracts.js": "4.0.0-nightly.20260204",
-    "@aztec/pxe": "4.0.0-nightly.20260204",
-    "@aztec/stdlib": "4.0.0-nightly.20260204",
-    "@aztec/test-wallet": "4.0.0-nightly.20260204",
-    "@defi-wonderland/aztec-benchmark": "3.0.0-devnet.2",
+    "@aztec/accounts": "4.0.0-devnet.1-patch.0",
+    "@aztec/aztec.js": "4.0.0-devnet.1-patch.0",
+    "@aztec/entrypoints": "4.0.0-devnet.1-patch.0",
+    "@aztec/noir-contracts.js": "4.0.0-devnet.1-patch.0",
+    "@aztec/pxe": "4.0.0-devnet.1-patch.0",
+    "@aztec/stdlib": "4.0.0-devnet.1-patch.0",
+    "@aztec/test-wallet": "4.0.0-devnet.1-patch.0",
+    "@defi-wonderland/aztec-benchmark": "4.0.0-devnet.1-patch.0",
+    "@defi-wonderland/aztec-standards": "https://github.com/defi-wonderland/aztec-standards/releases/download/prerelease-d266748/defi-wonderland-aztec-standards-4.0.0-devnet.1-patch.0-prerelease.d266748.tgz",
     "@types/node": "25.0.2"
   },
   "devDependencies": {
@@ -45,7 +70,7 @@
     "vitest": "4.0.15"
   },
   "config": {
-    "aztecVersion": "4.0.0-nightly.20260204"
+    "aztecVersion": "4.0.0-devnet.1-patch.0"
   },
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e",
   "engines": {
