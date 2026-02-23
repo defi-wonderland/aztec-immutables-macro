@@ -31,8 +31,12 @@ import {
   deploySchnorrInitializerlessAccount,
   type DeploySchnorrInitializerlessAccountResult,
 } from "../src/ts/schnorr-initializerless-account/index.js";
-import { deploySchnorrAccount } from "../src/ts/schnorr-account/utils.js";
+import {
+  deploySchnorrAccount,
+  SchnorrAccountContract,
+} from "../src/ts/schnorr-account/utils.js";
 import { TokenContract } from "@defi-wonderland/aztec-standards/artifacts/src/artifacts/Token.js";
+import type { ContractFunctionInteraction } from "@aztec/aztec.js/contracts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -45,6 +49,7 @@ interface AccountBenchmarkContext extends BenchmarkContext {
   token: TokenContract;
   immutablesAccount: DeploySchnorrInitializerlessAccountResult;
   standardAccountAddress: AztecAddress;
+  standardAccountInitialize: ContractFunctionInteraction;
   sponsoredPaymentMethod: SponsoredFeePaymentMethod;
 }
 
@@ -99,6 +104,14 @@ export default class AccountComparisonBenchmark extends Benchmark {
     });
     const standardAccountAddress = standardAccount.contract.address;
 
+    // Prepare a fresh standard account deploy+initialize for benchmarking.
+    // This measures the initialization cost that initializerless accounts avoid.
+    const standardAccountInitialize = SchnorrAccountContract.deploy(
+      wallet,
+      Fr.random(),
+      Fr.random(),
+    ) as unknown as ContractFunctionInteraction;
+
     // Pre-fund both accounts with private tokens for transfer benchmarks
     const PREFUND_AMOUNT = 100_000n;
 
@@ -117,6 +130,7 @@ export default class AccountComparisonBenchmark extends Benchmark {
       token,
       immutablesAccount,
       standardAccountAddress,
+      standardAccountInitialize,
       sponsoredPaymentMethod,
       feePaymentMethod: sponsoredPaymentMethod,
     };
@@ -133,6 +147,7 @@ export default class AccountComparisonBenchmark extends Benchmark {
       token,
       immutablesAccount,
       standardAccountAddress,
+      standardAccountInitialize,
     } = context;
 
     const TRANSFER_AMOUNT = 10n;
@@ -169,6 +184,13 @@ export default class AccountComparisonBenchmark extends Benchmark {
       },
 
       // --- Standard Account ---
+      {
+        interaction: {
+          caller: deployer,
+          action: standardAccountInitialize,
+        },
+        name: "Standard Account: deploy + initialize",
+      },
       {
         interaction: {
           caller: standardAccountAddress,
