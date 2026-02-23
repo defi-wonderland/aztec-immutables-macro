@@ -11,3 +11,5 @@ store
 store-*
 pxe-*
 benchmarks/*.benchmark.json
+dist/
+*.tsbuildinfo
