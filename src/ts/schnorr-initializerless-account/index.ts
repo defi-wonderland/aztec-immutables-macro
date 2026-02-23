@@ -45,17 +45,17 @@ import type { Wallet } from "@aztec/aztec.js/wallet";
 import { deriveKeys, deriveSigningKey } from "@aztec/stdlib/keys";
 
 import {
-  SchnorrInitializerlessAccountContract as SchnorrInitializerlessAccountContractHandle,
+  SchnorrInitializerlessAccountContract,
   SchnorrInitializerlessAccountContractArtifact,
 } from "../../artifacts/SchnorrInitializerlessAccount.js";
-import * as generic from "../immutables/utils.js";
+import * as generic from "../immutables/index.js";
 import type {
   ImmutablesInstanceOptions,
   DeployWithImmutablesOptions,
-} from "../immutables/utils.js";
+} from "../immutables/index.js";
 
 // Re-export IMMUTABLES_SLOT from generic
-export { IMMUTABLES_SLOT } from "../immutables/utils.js";
+export { IMMUTABLES_SLOT } from "../immutables/index.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -176,7 +176,7 @@ export async function computeSchnorrAccountAddress(
  * This class enables the initializerless immutables account to work with
  * the Aztec wallet system for transaction signing.
  */
-export class SchnorrInitializerlessAccountContract implements AccountContract {
+export class SchnorrInitializerlessAccount implements AccountContract {
   constructor(
     private signingPrivateKey: GrumpkinScalar,
     private signingPublicKey: SigningPublicKey,
@@ -263,18 +263,18 @@ export class SchnorrInitializerlessAuthWitnessProvider implements AuthWitnessPro
 // ---------------------------------------------------------------------------
 
 /**
- * Creates a SchnorrInitializerlessAccountContract from a secret key.
+ * Creates a SchnorrInitializerlessAccount from a secret key.
  *
  * This derives the signing key pair from the secret and creates
- * an account contract ready for deployment.
+ * an account ready for deployment.
  *
  * @param secretKey - The secret key to derive signing keys from
- * @returns The account contract with derived signing keys
+ * @returns The account with derived signing keys
  */
-export async function createSchnorrInitializerlessAccountContract(
+export async function createSchnorrInitializerlessAccount(
   secretKey: Fr,
 ): Promise<{
-  contract: SchnorrInitializerlessAccountContract;
+  account: SchnorrInitializerlessAccount;
   signingPrivateKey: GrumpkinScalar;
   signingPublicKey: SigningPublicKey;
 }> {
@@ -293,12 +293,12 @@ export async function createSchnorrInitializerlessAccountContract(
     ),
   };
 
-  const contract = new SchnorrInitializerlessAccountContract(
+  const account = new SchnorrInitializerlessAccount(
     signingPrivateKey,
     signingPublicKey,
   );
 
-  return { contract, signingPrivateKey, signingPublicKey };
+  return { account, signingPrivateKey, signingPublicKey };
 }
 
 // ---------------------------------------------------------------------------
@@ -310,7 +310,7 @@ export async function createSchnorrInitializerlessAccountContract(
  */
 export interface DeploySchnorrInitializerlessAccountResult {
   /** The deployed contract handle */
-  contract: SchnorrInitializerlessAccountContractHandle;
+  contract: SchnorrInitializerlessAccountContract;
   address: AztecAddress;
   secretKey: Fr;
   signingPrivateKey: GrumpkinScalar;
@@ -372,8 +372,8 @@ export async function deploySchnorrInitializerlessAccount(
   const instance = deployResult.instance;
   const address = instance.address;
 
-  // Create AccountContract for wallet signing integration
-  const accountContract = new SchnorrInitializerlessAccountContract(
+  // Create Account for wallet signing integration
+  const schnorrAccount = new SchnorrInitializerlessAccount(
     signingPrivateKey,
     signingPublicKey,
   );
@@ -383,17 +383,14 @@ export async function deploySchnorrInitializerlessAccount(
     instance,
   );
 
-  const baseAccount = accountContract.getAccount(completeAddress);
+  const baseAccount = schnorrAccount.getAccount(completeAddress);
   const account = new AccountWithSecretKey(
     baseAccount,
     secretKey,
     instance.salt,
   );
 
-  const contract = SchnorrInitializerlessAccountContractHandle.at(
-    address,
-    wallet,
-  );
+  const contract = SchnorrInitializerlessAccountContract.at(address, wallet);
 
   return {
     contract,

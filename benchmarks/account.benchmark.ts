@@ -33,7 +33,7 @@ import {
   type DeploySchnorrInitializerlessAccountResult,
 } from "../src/ts/schnorr-initializerless-account/index.js";
 import { deploySchnorrAccount } from "../src/ts/schnorr-account/utils.js";
-import { TokenContract } from "../src/artifacts/Token.js";
+import { TokenContract } from "@defi-wonderland/aztec-standards/artifacts/src/artifacts/Token.js";
 
 // ---------------------------------------------------------------------------
 // Types

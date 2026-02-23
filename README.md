@@ -122,10 +122,10 @@ The `store()` method validates `poseidon2_hash(capsule_data) == instance.salt` b
 
 ### 5. Deploy and use (TypeScript)
 
-This repo provides TypeScript utilities in `src/ts/immutables/utils.ts` that handle the full deployment lifecycle:
+This repo provides TypeScript utilities in `src/ts/immutables/index.ts` that handle the full deployment lifecycle:
 
 ```typescript
-import { deployWithImmutables } from "./immutables/utils.js";
+import { deployWithImmutables } from "@defi-wonderland/immutables-macro/immutables";
 
 // Deploy — handles salt derivation, PXE registration, publication,
 // and persistent capsule storage automatically
@@ -247,7 +247,7 @@ When importing this library as an npm package, deploying an initializerless Schn
 ```typescript
 import {
   deploySchnorrInitializerlessAccount,
-} from "immutables-macro/schnorr-initializerless-account";
+} from "@defi-wonderland/immutables-macro/schnorr-initializerless-account";
 
 // Deploy — one call handles everything:
 //   key derivation, salt computation, PXE registration,
@@ -283,7 +283,7 @@ To pre-compute the address without deploying:
 ```typescript
 import {
   computeSchnorrAccountAddress,
-} from "immutables-macro/schnorr-initializerless-account";
+} from "@defi-wonderland/immutables-macro/schnorr-initializerless-account";
 
 const { address, capsuleData } = await computeSchnorrAccountAddress(signingKey);
 // Send funds to address, deploy later
@@ -303,7 +303,7 @@ await deploySchnorrInitializerlessAccount(wallet, {
 For generic contracts (not account-specific), use `deployWithImmutables` with `serializeFromLayout` to build a typed wrapper over your own Noir immutables struct. For example, a private recovery module that commits a recovery address and secret hash into its identity:
 
 ```typescript
-import { deployWithImmutables, serializeFromLayout } from "immutables-macro/immutables/utils";
+import { deployWithImmutables, serializeFromLayout } from "@defi-wonderland/immutables-macro/immutables";
 import { PrivateRecoveryModuleArtifact } from "./artifacts/PrivateRecoveryModule.js";
 
 // Example Noir struct:
@@ -352,7 +352,7 @@ The layout includes:
 - **`fields`**: Map of field names to their index in the serialized array
 
 ```typescript
-import { getImmutablesLayout } from "./immutables/utils.js";
+import { getImmutablesLayout } from "@defi-wonderland/immutables-macro/immutables";
 
 const layout = getImmutablesLayout(MyContractArtifact);
 // layout = {

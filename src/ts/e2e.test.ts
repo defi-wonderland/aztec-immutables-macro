@@ -75,7 +75,7 @@ async function deployAndRegister(
 }
 
 // Import Token from aztec-standards
-import { TokenContract } from "../../src/artifacts/Token.js";
+import { TokenContract } from "@defi-wonderland/aztec-standards/artifacts/src/artifacts/Token.js";
 
 describe("Initializerless Account", () => {
   let store: AztecLMDBStoreV2;
@@ -427,10 +427,13 @@ describe("Initializerless Account", () => {
       nonce,
     );
 
+    // Convert to a FunctionCall to avoid instanceof mismatch across packages
+    const call = await action.getFunctionCall();
+
     // initializerlessAccount creates an auth witness approving this action
     const witness = await wallet.createAuthWit(initializerlessAccount.address, {
       caller: deployerAddress,
-      action,
+      call,
     });
 
     // deployerAddress executes the transfer on behalf of initializerlessAccount

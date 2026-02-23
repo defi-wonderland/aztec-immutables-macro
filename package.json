@@ -13,8 +13,7 @@
     "test:js": "vitest run",
     "test:nr": "aztec test",
     "lint:prettier": "prettier '**/*.{js,ts}' --write",
-    "ccc": "yarn clean && yarn compile && yarn codegen && yarn build-aztec-standards",
-    "build-aztec-standards": "npx tsx scripts/build-aztec-standards.ts dev",
+    "ccc": "yarn clean && yarn compile && yarn codegen",
     "benchmark": "aztec-benchmark --suffix _base",
     "prepare": "husky"
   },
@@ -30,6 +29,7 @@
     "@aztec/stdlib": "4.0.0-devnet.1-patch.0",
     "@aztec/test-wallet": "4.0.0-devnet.1-patch.0",
     "@defi-wonderland/aztec-benchmark": "4.0.0-devnet.1-patch.0",
+    "@defi-wonderland/aztec-standards": "https://github.com/defi-wonderland/aztec-standards/releases/download/prerelease-d266748/defi-wonderland-aztec-standards-4.0.0-devnet.1-patch.0-prerelease.d266748.tgz",
     "@types/node": "25.0.2"
   },
   "devDependencies": {

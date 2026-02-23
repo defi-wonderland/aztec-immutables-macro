@@ -14,7 +14,7 @@
  * ## Usage
  *
  * ```typescript
- * import { deployWithImmutables } from "./immutables/utils.js";
+ * import { deployWithImmutables } from "@defi-wonderland/immutables-macro/immutables";
  *
  * // Deploy any contract with immutables
  * const { instance, capsuleData } = await deployWithImmutables(wallet, MyContractArtifact, [field1, field2]);
