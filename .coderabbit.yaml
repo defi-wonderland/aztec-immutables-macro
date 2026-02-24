@@ -171,7 +171,8 @@ reviews:
         Project configuration. Verify:
         - All @aztec/* dependency versions are aligned with each other.
         - packageManager field is present and matches the expected Yarn version.
-        - Node.js engine requirements are specified (>=22).
+        - Node.js engine requirements must pin an exact version (e.g., "22"), not a range (no >= or ~). The pinned version must be 22 or higher.
+        - All dependencies are pinned to specific versions (no ^ or ~).
 
     - path: ".github/workflows/**"
       instructions: >
