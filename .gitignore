@@ -10,6 +10,7 @@ codegenCache.json
 store
 store-*
 pxe-*
+wallet_data_*
 benchmarks/*.benchmark.json
 dist/
 *.tsbuildinfo

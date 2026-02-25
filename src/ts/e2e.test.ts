@@ -29,48 +29,24 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { EmbeddedWallet } from "@aztec/wallets/embedded";
-import type { Account } from "@aztec/aztec.js/account";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { Fr } from "@aztec/aztec.js/fields";
 import type { SponsoredFeePaymentMethod } from "@aztec/aztec.js/fee/testing";
-import { setupTestSuite } from "./utils.js";
+import { setupTestSuite, CustomEmbeddedWallet } from "./utils.js";
 
 import { deploySchnorrInitializerlessAccount } from "./schnorr-initializerless-account/index.js";
 import { deploySchnorrAccount } from "./schnorr-account/utils.js";
-
-/**
- * Register a custom account with EmbeddedWallet for signing.
- * EmbeddedWallet's getAccountFromAddress is protected, so we monkey-patch it.
- */
-function registerCustomAccount(
-  wallet: EmbeddedWallet,
-  address: AztecAddress,
-  account: Account,
-) {
-  const w = wallet as any;
-  if (!w._customAccounts) {
-    w._customAccounts = new Map<string, Account>();
-    const original = w.getAccountFromAddress.bind(w);
-    w.getAccountFromAddress = async (addr: AztecAddress) => {
-      const custom = w._customAccounts.get(addr.toString());
-      if (custom) return custom;
-      return original(addr);
-    };
-  }
-  w._customAccounts.set(address.toString(), account);
-}
 
 /**
  * Deploys a SchnorrInitializerlessAccount and registers it with the wallet for signing.
  * This is a test-only helper — production wallets handle account registration differently.
  */
 async function deployAndRegister(
-  wallet: EmbeddedWallet,
+  wallet: CustomEmbeddedWallet,
   options?: Parameters<typeof deploySchnorrInitializerlessAccount>[1],
 ) {
   const result = await deploySchnorrInitializerlessAccount(wallet, options);
-  registerCustomAccount(wallet, result.address, result.account);
+  wallet.registerCustomAccount(result.address, result.account);
   return result;
 }
 
@@ -79,7 +55,7 @@ import { TokenContract } from "@defi-wonderland/aztec-standards/artifacts/src/ar
 
 describe("Initializerless Account", () => {
   let cleanup: () => Promise<void>;
-  let wallet: EmbeddedWallet;
+  let wallet: CustomEmbeddedWallet;
   let deployerAddress: AztecAddress;
 
   // Contracts

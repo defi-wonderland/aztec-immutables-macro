@@ -15,19 +15,15 @@
 
 import { AztecAddress } from "@aztec/aztec.js/addresses";
 import { type ContractFunctionInteractionCallIntent } from "@aztec/aztec.js/authorization";
-import { getContractInstanceFromInstantiationParams } from "@aztec/aztec.js/contracts";
-import { SponsoredFeePaymentMethod } from "@aztec/aztec.js/fee/testing";
+import type { SponsoredFeePaymentMethod } from "@aztec/aztec.js/fee/testing";
 import { Fr } from "@aztec/aztec.js/fields";
-import { SponsoredFPCContract } from "@aztec/noir-contracts.js/SponsoredFPC";
-import { EmbeddedWallet } from "@aztec/wallets/embedded";
-import type { Account } from "@aztec/aztec.js/account";
 import {
   Benchmark,
   type BenchmarkContext,
 } from "@defi-wonderland/aztec-benchmark";
 import type { NamedBenchmarkedInteraction } from "@defi-wonderland/aztec-benchmark/dist/types.js";
 
-import { setupTestSuite } from "../src/ts/utils.js";
+import { setupTestSuite, CustomEmbeddedWallet } from "../src/ts/utils.js";
 import {
   deploySchnorrInitializerlessAccount,
   type DeploySchnorrInitializerlessAccountResult,
@@ -40,31 +36,9 @@ import type { ContractFunctionInteraction } from "@aztec/aztec.js/contracts";
 // Types
 // ---------------------------------------------------------------------------
 
-/**
- * Register a custom account with EmbeddedWallet for signing.
- * EmbeddedWallet's getAccountFromAddress is protected, so we monkey-patch it.
- */
-function registerCustomAccount(
-  wallet: EmbeddedWallet,
-  address: AztecAddress,
-  account: Account,
-) {
-  const w = wallet as any;
-  if (!w._customAccounts) {
-    w._customAccounts = new Map<string, Account>();
-    const original = w.getAccountFromAddress.bind(w);
-    w.getAccountFromAddress = async (addr: AztecAddress) => {
-      const custom = w._customAccounts.get(addr.toString());
-      if (custom) return custom;
-      return original(addr);
-    };
-  }
-  w._customAccounts.set(address.toString(), account);
-}
-
 interface AccountBenchmarkContext extends BenchmarkContext {
   cleanup: () => Promise<void>;
-  wallet: EmbeddedWallet;
+  wallet: CustomEmbeddedWallet;
   deployer: AztecAddress;
   token: TokenContract;
   immutablesAccount: DeploySchnorrInitializerlessAccountResult;
@@ -79,22 +53,9 @@ interface AccountBenchmarkContext extends BenchmarkContext {
 
 export default class AccountComparisonBenchmark extends Benchmark {
   async setup(): Promise<AccountBenchmarkContext> {
-    const { cleanup, wallet, accounts } = await setupTestSuite(true);
+    const { cleanup, wallet, accounts, sponsoredPaymentMethod } =
+      await setupTestSuite(true);
     const [deployer] = accounts;
-
-    // Register the canonical SponsoredFPC for fee sponsorship.
-    const sponsoredFPCInstance =
-      await getContractInstanceFromInstantiationParams(
-        SponsoredFPCContract.artifact,
-        { salt: new Fr(0n) },
-      );
-    await wallet.registerContract(
-      sponsoredFPCInstance,
-      SponsoredFPCContract.artifact,
-    );
-    const sponsoredPaymentMethod = new SponsoredFeePaymentMethod(
-      sponsoredFPCInstance.address,
-    );
 
     // Deploy Token contract with deployer as minter
     const token = await TokenContract.deployWithOpts(
@@ -112,15 +73,15 @@ export default class AccountComparisonBenchmark extends Benchmark {
       { secretKey: Fr.random() },
     );
     // Register account with wallet for signing
-    registerCustomAccount(
-      wallet,
+    wallet.registerCustomAccount(
       immutablesAccount.address,
       immutablesAccount.account,
     );
 
-    // Deploy standard schnorr account
+    // Deploy standard schnorr account (needs sponsored fee for deployment)
     const standardAccount = await deploySchnorrAccount(wallet, {
       secretKey: Fr.random(),
+      fee: { paymentMethod: sponsoredPaymentMethod },
     });
     const standardAccountAddress = standardAccount.contract.address;
 
