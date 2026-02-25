@@ -26,8 +26,9 @@
 
 import { Fr } from "@aztec/aztec.js/fields";
 import type { Wallet } from "@aztec/aztec.js/wallet";
-import { AccountManager } from "@aztec/aztec.js/wallet";
+import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { deriveSigningKey } from "@aztec/stdlib/keys";
+import type { EmbeddedWallet } from "@aztec/wallets/embedded";
 import {
   SchnorrAccountContract,
   SchnorrAccountContractArtifact,
@@ -53,7 +54,7 @@ export interface DeploySchnorrAccountResult {
 /**
  * Deploys the standard SchnorrAccount contract.
  *
- * This uses the proper account deployment pattern via TestWallet.createAccount():
+ * This uses the proper account deployment pattern via EmbeddedWallet.createSchnorrAccount():
  * 1. Creates account with secret key (uses the default SchnorrAccountContract)
  * 2. Registers the account with PXE (including public keys for encryption)
  * 3. Deploys and initializes the contract
@@ -63,16 +64,16 @@ export interface DeploySchnorrAccountResult {
  * a different class ID than our local contract. For benchmarking the local contract,
  * we need to use a different approach.
  *
- * @param wallet - The wallet to deploy with (must be a TestWallet)
+ * @param wallet - The wallet to deploy with (must be an EmbeddedWallet)
  * @param options - Optional deployment options
  * @returns The deployed contract instance and keys
  */
 export async function deploySchnorrAccount(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  wallet: Wallet & { createAccount?: (data?: any) => Promise<AccountManager> },
+  wallet: Wallet,
   options?: {
     secretKey?: Fr;
     salt?: Fr;
+    fee?: { paymentMethod: any };
   },
 ): Promise<DeploySchnorrAccountResult> {
   // Generate or use provided secret key
@@ -86,36 +87,28 @@ export async function deploySchnorrAccount(
     y: new Fr(signingKey.hi),
   };
 
-  // Use TestWallet.createAccount which uses the SDK's SchnorrAccountContract
+  // Use EmbeddedWallet.createSchnorrAccount which uses the SDK's SchnorrAccountContract
   // This handles all the auth witness provider setup properly
-  if (wallet.createAccount) {
-    const accountManager = await wallet.createAccount({
-      secret: secretKey,
-      salt,
-      // Don't pass contract - let it use the default SchnorrAccountContract
-    });
-
-    // Get the deployer address (first registered account)
-    const deployerAddress = (await wallet.getAccounts())[0]!.item;
-
-    // Deploy the account contract
-    const deployMethod = await accountManager.getDeployMethod();
-    await deployMethod.send({ from: deployerAddress });
-
-    // Get the deployed contract instance using our local artifact
-    // Note: This will have the same address but uses our local artifact
-    const contract = SchnorrAccountContract.at(accountManager.address, wallet);
-
-    return {
-      contract,
-      secretKey,
-      signingPublicKey,
-    };
-  }
-
-  throw new Error(
-    "deploySchnorrAccount requires a TestWallet with createAccount method",
+  const embeddedWallet = wallet as unknown as EmbeddedWallet;
+  const accountManager = await embeddedWallet.createSchnorrAccount(
+    secretKey,
+    salt,
   );
+
+  // Deploy the account contract using AztecAddress.ZERO as sender
+  // (the deploy protocol handles the first-tx exception for account contracts)
+  const deployMethod = await accountManager.getDeployMethod();
+  await deployMethod.send({ from: AztecAddress.ZERO, fee: options?.fee });
+
+  // Get the deployed contract instance using our local artifact
+  // Note: This will have the same address but uses our local artifact
+  const contract = SchnorrAccountContract.at(accountManager.address, wallet);
+
+  return {
+    contract,
+    secretKey,
+    signingPublicKey,
+  };
 }
 
 /**

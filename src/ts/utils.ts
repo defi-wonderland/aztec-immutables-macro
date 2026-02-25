@@ -4,12 +4,14 @@ import { rmSync } from "fs";
 import { join } from "path";
 
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
+import { Fr } from "@aztec/aztec.js/fields";
 import { createAztecNodeClient, waitForNode } from "@aztec/aztec.js/node";
-import {
-  registerInitialLocalNetworkAccountsInWallet,
-  TestWallet,
-} from "@aztec/test-wallet/server";
-import { getPXEConfig } from "@aztec/pxe/server";
+import { getContractInstanceFromInstantiationParams } from "@aztec/aztec.js/contracts";
+import { SponsoredFeePaymentMethod } from "@aztec/aztec.js/fee/testing";
+import { SponsoredFPCContract } from "@aztec/noir-contracts.js/SponsoredFPC";
+import { EmbeddedWallet } from "@aztec/wallets/embedded";
+import type { Wallet } from "@aztec/aztec.js/wallet";
+import { registerInitialLocalNetworkAccountsInWallet } from "@aztec/wallets/testing";
 
 const { NODE_URL = "http://localhost:8080" } = process.env;
 
@@ -22,22 +24,14 @@ export async function setupTestSuite(proverEnabled: boolean = false) {
   const node = createAztecNodeClient(NODE_URL);
   await waitForNode(node);
 
-  const l1Contracts = await node.getL1ContractAddresses();
-  const config = getPXEConfig();
   const dataDirectory = join(
     tmpdir(),
     `immutables-macro-${randomBytes(8).toString("hex")}`,
   );
 
-  const pxeConfig = {
-    ...config,
-    l1Contracts,
-    dataDirectory,
-    dataStoreMapSizeKb: 1e6,
-    proverEnabled,
-  };
-
-  const wallet: TestWallet = await TestWallet.create(node, pxeConfig);
+  const wallet: EmbeddedWallet = await EmbeddedWallet.create(node, {
+    pxeConfig: { dataDirectory, proverEnabled },
+  });
 
   const accounts: AztecAddress[] =
     await registerInitialLocalNetworkAccountsInWallet(wallet);
@@ -49,10 +43,33 @@ export async function setupTestSuite(proverEnabled: boolean = false) {
     } catch {}
   };
 
+  // Register the canonical SponsoredFPC for fee sponsorship
+  const sponsoredFPCAddress = await registerSponsoredFPC(wallet);
+  const sponsoredPaymentMethod = new SponsoredFeePaymentMethod(
+    sponsoredFPCAddress,
+  );
+
   return {
     node,
     wallet,
     accounts,
+    sponsoredPaymentMethod,
     cleanup,
   };
+}
+
+/**
+ * Register the canonical SponsoredFPC contract and return its address.
+ * The SponsoredFPC is deployed at a well-known address using salt = 0.
+ */
+export async function registerSponsoredFPC(
+  wallet: Wallet,
+): Promise<AztecAddress> {
+  const SPONSORED_FPC_SALT = 0n;
+  const instance = await getContractInstanceFromInstantiationParams(
+    SponsoredFPCContract.artifact,
+    { salt: new Fr(SPONSORED_FPC_SALT) },
+  );
+  await wallet.registerContract(instance, SponsoredFPCContract.artifact);
+  return instance.address;
 }

@@ -19,7 +19,8 @@ import { getContractInstanceFromInstantiationParams } from "@aztec/aztec.js/cont
 import { SponsoredFeePaymentMethod } from "@aztec/aztec.js/fee/testing";
 import { Fr } from "@aztec/aztec.js/fields";
 import { SponsoredFPCContract } from "@aztec/noir-contracts.js/SponsoredFPC";
-import { TestWallet } from "@aztec/test-wallet/server";
+import { EmbeddedWallet } from "@aztec/wallets/embedded";
+import type { Account } from "@aztec/aztec.js/account";
 import {
   Benchmark,
   type BenchmarkContext,
@@ -39,9 +40,31 @@ import type { ContractFunctionInteraction } from "@aztec/aztec.js/contracts";
 // Types
 // ---------------------------------------------------------------------------
 
+/**
+ * Register a custom account with EmbeddedWallet for signing.
+ * EmbeddedWallet's getAccountFromAddress is protected, so we monkey-patch it.
+ */
+function registerCustomAccount(
+  wallet: EmbeddedWallet,
+  address: AztecAddress,
+  account: Account,
+) {
+  const w = wallet as any;
+  if (!w._customAccounts) {
+    w._customAccounts = new Map<string, Account>();
+    const original = w.getAccountFromAddress.bind(w);
+    w.getAccountFromAddress = async (addr: AztecAddress) => {
+      const custom = w._customAccounts.get(addr.toString());
+      if (custom) return custom;
+      return original(addr);
+    };
+  }
+  w._customAccounts.set(address.toString(), account);
+}
+
 interface AccountBenchmarkContext extends BenchmarkContext {
   cleanup: () => Promise<void>;
-  wallet: TestWallet;
+  wallet: EmbeddedWallet;
   deployer: AztecAddress;
   token: TokenContract;
   immutablesAccount: DeploySchnorrInitializerlessAccountResult;
@@ -88,10 +111,10 @@ export default class AccountComparisonBenchmark extends Benchmark {
       wallet,
       { secretKey: Fr.random() },
     );
-    // Register account with TestWallet for signing
-    // @ts-ignore — TestWallet-specific: register account for signing
-    wallet.accounts?.set(
-      immutablesAccount.address.toString(),
+    // Register account with wallet for signing
+    registerCustomAccount(
+      wallet,
+      immutablesAccount.address,
       immutablesAccount.account,
     );
 
@@ -105,10 +128,10 @@ export default class AccountComparisonBenchmark extends Benchmark {
     // This measures the initialization cost that initializerless accounts avoid.
     // We use createAccount() to register keys with PXE, then get the deploy method
     // without sending — the profiler will simulate/prove/send it.
-    const benchAccountManager = await wallet.createAccount({
-      secret: Fr.random(),
-      salt: Fr.random(),
-    });
+    const benchAccountManager = await wallet.createSchnorrAccount(
+      Fr.random(),
+      Fr.random(),
+    );
     const standardAccountInitialize =
       (await benchAccountManager.getDeployMethod()) as unknown as ContractFunctionInteraction;
 

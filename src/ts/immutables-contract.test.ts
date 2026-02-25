@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { TestWallet } from "@aztec/test-wallet/server";
+import { EmbeddedWallet } from "@aztec/wallets/embedded";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { Fr } from "@aztec/aztec.js/fields";
+import type { SponsoredFeePaymentMethod } from "@aztec/aztec.js/fee/testing";
 import {
   deployImmutablesContract,
   deployMixedUsageContract,
@@ -26,14 +27,16 @@ const INITIAL_COUNTER = 42n;
 
 describe("Immutables Contract - Initializerless Pattern", () => {
   let cleanup: () => Promise<void>;
-  let wallet: TestWallet;
+  let wallet: EmbeddedWallet;
   let alice: AztecAddress;
+  let sponsoredPaymentMethod: SponsoredFeePaymentMethod;
 
   beforeAll(async () => {
     ({
       cleanup,
       wallet,
       accounts: [alice],
+      sponsoredPaymentMethod,
     } = await setupTestSuite());
   });
 
@@ -100,6 +103,7 @@ describe("Immutables Contract - Initializerless Pattern", () => {
         {
           publishClass: true,
           publishInstance: true,
+          fee: { paymentMethod: sponsoredPaymentMethod },
         },
       );
 
@@ -230,14 +234,16 @@ describe("Immutables Contract - Initializerless Pattern", () => {
 
 describe("Immutables Contract - Mixed Usage (Immutables + Storage)", () => {
   let cleanup: () => Promise<void>;
-  let wallet: TestWallet;
+  let wallet: EmbeddedWallet;
   let alice: AztecAddress;
+  let sponsoredPaymentMethod: SponsoredFeePaymentMethod;
 
   beforeAll(async () => {
     ({
       cleanup,
       wallet,
       accounts: [alice],
+      sponsoredPaymentMethod,
     } = await setupTestSuite());
   });
 
@@ -251,6 +257,7 @@ describe("Immutables Contract - Mixed Usage (Immutables + Storage)", () => {
       wallet,
       IMMUTABLES_1,
       INITIAL_COUNTER,
+      { fee: { paymentMethod: sponsoredPaymentMethod } },
     );
 
     // Verify contract was deployed
@@ -269,6 +276,7 @@ describe("Immutables Contract - Mixed Usage (Immutables + Storage)", () => {
       wallet,
       IMMUTABLES_1,
       INITIAL_COUNTER,
+      { fee: { paymentMethod: sponsoredPaymentMethod } },
     );
 
     // Increment counter via public function
@@ -286,6 +294,7 @@ describe("Immutables Contract - Mixed Usage (Immutables + Storage)", () => {
       wallet,
       IMMUTABLES_1,
       INITIAL_COUNTER,
+      { fee: { paymentMethod: sponsoredPaymentMethod } },
     );
 
     // Storage works
@@ -308,6 +317,7 @@ describe("Immutables Contract - Mixed Usage (Immutables + Storage)", () => {
       wallet,
       IMMUTABLES_1,
       INITIAL_COUNTER,
+      { fee: { paymentMethod: sponsoredPaymentMethod } },
     );
 
     // The combined private+public function should succeed:
