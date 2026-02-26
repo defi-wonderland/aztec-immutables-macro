@@ -14,7 +14,7 @@
  * ## Usage
  *
  * ```typescript
- * import { deployWithImmutables } from "@defi-wonderland/immutables-macro/immutables";
+ * import { deployWithImmutables } from "@defi-wonderland/aztec-immutables-macro/immutables";
  *
  * // Deploy any contract with immutables
  * const { instance, capsuleData } = await deployWithImmutables(wallet, MyContractArtifact, [field1, field2]);
@@ -412,6 +412,8 @@ export interface DeployWithImmutablesOptions extends ImmutablesInstanceOptions {
   publishInstance?: boolean;
   /** Secret key for account contract registration (passed to wallet.registerContract) */
   secretKey?: Fr;
+  /** Fee payment method for publication transactions (e.g., SponsoredFeePaymentMethod) */
+  fee?: { paymentMethod: { getExecutionPayload(): Promise<ExecutionPayload> } };
 }
 
 /**
@@ -475,15 +477,8 @@ export async function deployWithImmutables(
   }
 
   if (options?.publishInstance) {
-    // Create capsule with [actual_salt, ...serialized_immutables]
-    const capsule = createImmutablesCapsule(
-      instance.address,
-      actualSalt,
-      serializedImmutables,
-    );
-
-    // Build execution payloads and merge into a single atomic transaction
-    // (mirrors how DeployMethod merges class + instance publication)
+    // Collect execution payloads and merge them into a single atomic transaction,
+    // matching how DeployMethod bundles publish + constructor calls.
     const payloads: ExecutionPayload[] = [];
 
     // Publish the contract class if requested
@@ -502,9 +497,7 @@ export async function deployWithImmutables(
 
     // Publish the contract instance
     const publishInstanceInteraction = publishInstance(wallet, instance);
-    payloads.push(
-      await publishInstanceInteraction.with({ capsules: [capsule] }).request(),
-    );
+    payloads.push(await publishInstanceInteraction.request());
 
     // Call initializer if provided
     if (options?.initializer || options?.initializerArgs) {
@@ -523,9 +516,17 @@ export async function deployWithImmutables(
       }
     }
 
-    // Send as a single merged transaction
-    const merged = mergeExecutionPayloads(payloads);
-    await wallet.sendTx(merged, { from: deployerAddress });
+    // Include fee payment method if provided (e.g., SponsoredFeePaymentMethod)
+    if (options?.fee?.paymentMethod) {
+      const feePayload = await options.fee.paymentMethod.getExecutionPayload();
+      payloads.unshift(feePayload);
+    }
+
+    // Send all publish + init calls as one merged transaction
+    if (payloads.length > 0) {
+      const merged = mergeExecutionPayloads(payloads);
+      await wallet.sendTx(merged, { from: deployerAddress });
+    }
   }
 
   return { instance, capsuleData };
