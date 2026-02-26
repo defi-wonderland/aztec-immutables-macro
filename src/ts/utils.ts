@@ -11,7 +11,6 @@ import { getContractInstanceFromInstantiationParams } from "@aztec/aztec.js/cont
 import { SponsoredFeePaymentMethod } from "@aztec/aztec.js/fee/testing";
 import { SponsoredFPCContract } from "@aztec/noir-contracts.js/SponsoredFPC";
 import { EmbeddedWallet } from "@aztec/wallets/embedded";
-import type { Wallet } from "@aztec/aztec.js/wallet";
 import { registerInitialLocalNetworkAccountsInWallet } from "@aztec/wallets/testing";
 
 const { NODE_URL = "http://localhost:8080" } = process.env;
@@ -78,7 +77,10 @@ export async function setupTestSuite(proverEnabled: boolean = false) {
     } catch {}
   };
 
-  // Register the canonical SponsoredFPC for fee sponsorship
+  // Register the canonical SponsoredFPC for fee sponsorship.
+  // Needed for txs sent by accounts without fee juice (e.g., custom accounts,
+  // AztecAddress.ZERO account deployments). NOT needed for publications from
+  // the pre-funded deployer.
   const sponsoredFPCAddress = await registerSponsoredFPC(wallet);
   const sponsoredPaymentMethod = new SponsoredFeePaymentMethod(
     sponsoredFPCAddress,
@@ -97,13 +99,12 @@ export async function setupTestSuite(proverEnabled: boolean = false) {
  * Register the canonical SponsoredFPC contract and return its address.
  * The SponsoredFPC is deployed at a well-known address using salt = 0.
  */
-export async function registerSponsoredFPC(
-  wallet: Wallet,
+async function registerSponsoredFPC(
+  wallet: CustomEmbeddedWallet,
 ): Promise<AztecAddress> {
-  const SPONSORED_FPC_SALT = 0n;
   const instance = await getContractInstanceFromInstantiationParams(
     SponsoredFPCContract.artifact,
-    { salt: new Fr(SPONSORED_FPC_SALT) },
+    { salt: new Fr(0n) },
   );
   await wallet.registerContract(instance, SponsoredFPCContract.artifact);
   return instance.address;

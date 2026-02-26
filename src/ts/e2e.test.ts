@@ -61,7 +61,9 @@ describe("Initializerless Account", () => {
   // Contracts
   let token: TokenContract;
 
-  // Fee sponsorship - allows accounts without fee juice to transact
+  // Fee sponsorship — needed for txs sent by accounts without fee juice
+  // (custom accounts, AztecAddress.ZERO deployments). NOT needed for
+  // publications or txs from the pre-funded deployer.
   let sponsoredPaymentMethod: SponsoredFeePaymentMethod;
 
   // Test configuration
@@ -378,6 +380,11 @@ describe("Initializerless Account", () => {
       secretKey: Fr.random(),
     });
 
+    // Snapshot deployer balance before (may have accumulated from prior tests)
+    const deployerBalanceBefore = await token.methods
+      .balance_of_private(deployerAddress)
+      .simulate({ from: deployerAddress });
+
     // Deployer mints tokens to the initializerless account
     await token.methods
       .mint_to_private(initializerlessAccount.address, MINT_AMOUNT)
@@ -406,6 +413,14 @@ describe("Initializerless Account", () => {
       .balance_of_private(initializerlessAccount.address)
       .simulate({ from: initializerlessAccount.address });
     expect(initializerlessBalance).toEqual(MINT_AMOUNT - TRANSFER_AMOUNT);
+
+    // Verify deployer received the tokens
+    const deployerBalanceAfter = await token.methods
+      .balance_of_private(deployerAddress)
+      .simulate({ from: deployerAddress });
+    expect(deployerBalanceAfter).toEqual(
+      deployerBalanceBefore + TRANSFER_AMOUNT,
+    );
   });
 
   it("should verify contract metadata for published vs unpublished accounts", async () => {
@@ -414,7 +429,6 @@ describe("Initializerless Account", () => {
       secretKey: Fr.random(),
       publishClass: true,
       publishInstance: true,
-      fee: { paymentMethod: sponsoredPaymentMethod },
     });
 
     // Deploy an unpublished account (PXE-only, default behavior)

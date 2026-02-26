@@ -104,7 +104,6 @@ export async function deployMixedUsageContract(
   wallet: Wallet,
   immutables: Immutables,
   initialCounter: bigint,
-  options?: { fee?: DeployWithImmutablesOptions["fee"] },
 ): Promise<DeployImmutablesContractResult> {
   const result = await generic.deployWithImmutables(
     wallet,
@@ -115,7 +114,6 @@ export async function deployMixedUsageContract(
       initializerArgs: [initialCounter],
       publishClass: true,
       publishInstance: true,
-      fee: options?.fee,
     },
   );
 

@@ -78,7 +78,7 @@ export default class AccountComparisonBenchmark extends Benchmark {
       immutablesAccount.account,
     );
 
-    // Deploy standard schnorr account (needs sponsored fee for deployment)
+    // Deploy standard schnorr account (needs sponsored fee — AztecAddress.ZERO has no balance)
     const standardAccount = await deploySchnorrAccount(wallet, {
       secretKey: Fr.random(),
       fee: { paymentMethod: sponsoredPaymentMethod },

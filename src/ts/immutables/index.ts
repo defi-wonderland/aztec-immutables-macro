@@ -412,8 +412,6 @@ export interface DeployWithImmutablesOptions extends ImmutablesInstanceOptions {
   publishInstance?: boolean;
   /** Secret key for account contract registration (passed to wallet.registerContract) */
   secretKey?: Fr;
-  /** Fee payment method for publication transactions (e.g., SponsoredFeePaymentMethod) */
-  fee?: { paymentMethod: { getExecutionPayload(): Promise<ExecutionPayload> } };
 }
 
 /**
@@ -514,12 +512,6 @@ export async function deployWithImmutables(
         );
         payloads.push(await constructorCall.request());
       }
-    }
-
-    // Include fee payment method if provided (e.g., SponsoredFeePaymentMethod)
-    if (options?.fee?.paymentMethod) {
-      const feePayload = await options.fee.paymentMethod.getExecutionPayload();
-      payloads.unshift(feePayload);
     }
 
     // Send all publish + init calls as one merged transaction

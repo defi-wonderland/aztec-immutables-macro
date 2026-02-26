@@ -11,7 +11,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { Fr } from "@aztec/aztec.js/fields";
-import type { SponsoredFeePaymentMethod } from "@aztec/aztec.js/fee/testing";
 import {
   createSigningKeyCapsule,
   computeContractSalt,
@@ -36,14 +35,12 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
   let cleanup: () => Promise<void>;
   let wallet: CustomEmbeddedWallet;
   let alice: AztecAddress;
-  let sponsoredPaymentMethod: SponsoredFeePaymentMethod;
 
   beforeAll(async () => {
     ({
       cleanup,
       wallet,
       accounts: [alice],
-      sponsoredPaymentMethod,
     } = await setupTestSuite());
   });
 
@@ -107,7 +104,6 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
         await deploySchnorrInitializerlessAccount(wallet, {
           publishClass: true,
           publishInstance: true,
-          fee: { paymentMethod: sponsoredPaymentMethod },
         });
 
       expect(contract.address).toBeDefined();
@@ -141,12 +137,10 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
         secretKey: Fr.random(),
         publishClass: true,
         publishInstance: true,
-        fee: { paymentMethod: sponsoredPaymentMethod },
       });
       const account2 = await deploySchnorrInitializerlessAccount(wallet, {
         secretKey: Fr.random(),
         publishInstance: true,
-        fee: { paymentMethod: sponsoredPaymentMethod },
       });
 
       // Different secrets should produce different addresses
