@@ -7,4 +7,10 @@ log/
 codegenCache.json
 .env
 .cursor
-pxe-test/
+store
+store-*
+pxe-*
+wallet_data_*
+benchmarks/*.benchmark.json
+dist/
+*.tsbuildinfo

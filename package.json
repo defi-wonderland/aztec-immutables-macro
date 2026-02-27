@@ -1,12 +1,36 @@
 {
-  "name": "aztec-boilerplate",
-  "version": "4.0.0-devnet.1-patch.0",
-  "repository": "https://github.com/defi-wonderland/initializerless-constants.git",
+  "name": "@defi-wonderland/aztec-immutables-macro",
+  "version": "4.0.0-devnet.2-patch.1",
+  "repository": "https://github.com/defi-wonderland/aztec-immutables-macro.git",
   "author": "Wonderland",
   "license": "MIT",
   "type": "module",
+  "main": "dist/ts/index.js",
+  "types": "dist/ts/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/ts/index.d.ts",
+      "import": "./dist/ts/index.js"
+    },
+    "./immutables": {
+      "types": "./dist/ts/immutables/index.d.ts",
+      "import": "./dist/ts/immutables/index.js"
+    },
+    "./schnorr-initializerless-account": {
+      "types": "./dist/ts/schnorr-initializerless-account/index.d.ts",
+      "import": "./dist/ts/schnorr-initializerless-account/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "clean": "rm -rf ./src/artifacts ./target codegenCache.json",
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf ./src/artifacts ./target codegenCache.json dist",
     "codegen": "aztec codegen target --outdir src/artifacts -f",
     "compile": "aztec compile",
     "test": "yarn test:nr && yarn test:js",
@@ -21,22 +45,20 @@
     "*.{js,ts}": "prettier --write -u"
   },
   "dependencies": {
-    "@aztec/accounts": "4.0.0-devnet.1-patch.0",
-    "@aztec/aztec.js": "4.0.0-devnet.1-patch.0",
-    "@aztec/entrypoints": "4.0.0-devnet.1-patch.0",
-    "@aztec/noir-contracts.js": "4.0.0-devnet.1-patch.0",
-    "@aztec/pxe": "4.0.0-devnet.1-patch.0",
-    "@aztec/stdlib": "4.0.0-devnet.1-patch.0",
-    "@aztec/test-wallet": "4.0.0-devnet.1-patch.0",
-    "@defi-wonderland/aztec-benchmark": "3.0.0-devnet.2",
+    "@aztec/accounts": "4.0.0-devnet.2-patch.1",
+    "@aztec/aztec.js": "4.0.0-devnet.2-patch.1",
+    "@aztec/entrypoints": "4.0.0-devnet.2-patch.1",
+    "@aztec/noir-contracts.js": "4.0.0-devnet.2-patch.1",
+    "@aztec/pxe": "4.0.0-devnet.2-patch.1",
+    "@aztec/stdlib": "4.0.0-devnet.2-patch.1",
+    "@aztec/wallets": "4.0.0-devnet.2-patch.1",
+    "@defi-wonderland/aztec-benchmark": "4.0.0-devnet.2-patch.1",
+    "@defi-wonderland/aztec-standards": "https://github.com/defi-wonderland/aztec-standards/releases/download/prerelease-85d235b/defi-wonderland-aztec-standards-4.0.0-devnet.2-patch.1-prerelease.85d235b.tgz",
     "@types/node": "25.0.2"
   },
   "devDependencies": {
     "@commitlint/cli": "20.2.0",
     "@commitlint/config-conventional": "20.2.0",
-    "@types/jest": "30.0.0",
-    "@types/mocha": "10.0.10",
-    "@types/node": "25.0.2",
     "husky": "9.1.7",
     "lint-staged": "16.2.7",
     "prettier": "3.7.4",
@@ -45,7 +67,7 @@
     "vitest": "4.0.15"
   },
   "config": {
-    "aztecVersion": "4.0.0-devnet.1-patch.0"
+    "aztecVersion": "4.0.0-devnet.2-patch.1"
   },
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e",
   "engines": {

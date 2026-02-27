@@ -91,6 +91,8 @@ pub comptime fn immutables(s: TypeDefinition) -> Quoted {
     // IMMUTABLES_SLOT: 0x1a0e563e6a2087002308173ed42dec43b9543a3684de63d6be9a958c0eaf5c45
     let IMMUTABLES_SLOT: Field = aztec::protocol::hash::poseidon2_hash_bytes("IMMUTABLES_SLOT".as_bytes());
 
+    let layout_quoted = generate_immutables_layout(s, serialized_len);
+
     quote {
         $serialize_impl
         $deserialize_impl
@@ -172,7 +174,121 @@ pub comptime fn immutables(s: TypeDefinition) -> Quoted {
 
                 aztec::protocol::traits::Deserialize::deserialize(serialized_immutables)
             }
+
+            /// Persists immutables data to the PXE's CapsuleStore after validation.
+            ///
+            /// Validates that `poseidon2_hash(capsule_data) == instance.salt` before
+            /// storing, preventing corrupt data from being persisted. This protects
+            /// `init_unconstrained()` which skips verification at read time.
+            ///
+            /// Call this from a `#[external("utility")]` function in your contract,
+            /// then invoke it via `.simulate()` from TypeScript after deployment.
+            /// After this, `init()` and `init_unconstrained()` can read immutables
+            /// from the persistent store without transient capsules.
+            ///
+            /// Note: capsule_data is passed as a parameter instead of using capsules::load
+            /// because the PXE's utility simulation path does not forward transient capsules
+            /// to the UtilityExecutionOracle (hardcoded [] at contract_function_simulator.ts).
+            /// See: https://github.com/AztecProtocol/aztec-packages/blob/v4.0.0-devnet.1-patch.0/yarn-project/pxe/src/contract_function_simulator/contract_function_simulator.ts#L275
+            /// TODO: Once that changes, switch to capsules::load here and remove the parameter.
+            ///
+            /// ## Arguments
+            ///
+            /// * `context` - The UtilityContext (use in utility functions)
+            /// * `capsule_data` - Array of `[actual_salt, field_0, field_1, ...]`
+            ///
+            /// ## Panics
+            ///
+            /// - "Immutables data does not match contract salt, refusing to store" - capsule_data is invalid
+            pub unconstrained fn store(context: aztec::context::UtilityContext, capsule_data: [Field; 1 + $serialized_len]) {
+                let address = context.this_address();
+
+                // Validate: hash(capsule_data) must match instance.salt before storing
+                let salt = aztec::protocol::hash::poseidon2_hash(capsule_data);
+                let instance = aztec::oracle::get_contract_instance::get_contract_instance(address);
+                assert_eq(
+                    salt,
+                    instance.salt,
+                    "Immutables data does not match contract salt, refusing to store",
+                );
+
+                aztec::oracle::capsules::store(address, $IMMUTABLES_SLOT, capsule_data);
+            }
         }
+
+        $layout_quoted
+    }
+}
+
+/// Generates the `#[abi(immutables)]` layout for the contract artifact.
+///
+/// Mirrors the `#[abi(storage)]` pattern from aztec-nr:
+/// https://github.com/AztecProtocol/aztec-packages/blob/v4.0.0-devnet.1-patch.0/noir-projects/aztec-nr/aztec/src/macros/storage.nr#L109-L112
+///
+/// The Noir compiler collects all `#[abi(tag)]` globals into `outputs.globals[tag]` in the
+/// artifact JSON. TypeScript can then parse the layout to introspect the immutables struct
+/// (field names, indices, serialized length).
+///
+/// ## Arguments
+///
+/// * `s` - The Immutables struct TypeDefinition
+/// * `serialized_len` - Quoted expression for the total serialized Fr[] length
+///
+/// ## Returns
+///
+/// Quoted code emitting `ImmutableLayoutEntry`, `ImmutablesLayoutFields`, `ImmutablesLayout`
+/// structs and an `#[abi(immutables)]` global.
+comptime fn generate_immutables_layout(s: TypeDefinition, serialized_len: Quoted) -> Quoted {
+    let module = s.module();
+    let module_name = module.name();
+    let immutables_layout_name = f"IMMUTABLES_LAYOUT_{module_name}".quoted_contents();
+    let module_name_str = f"{module_name}".as_quoted_str();
+    let module_name_len: u32 = std::meta::unquote!(quote { $module_name_str.as_bytes().len() });
+
+    // Evaluate serialized_len to a concrete u32.
+    // $serialized_len is a Quoted expression (e.g., `<PublicKey as Deserialize>::N`).
+    // The compiler's abi_gen can only serialize literals, so we resolve it at comptime.
+    let concrete_serialized_len: u32 = std::meta::unquote!(quote { $serialized_len });
+
+    let mut layout_struct_members = &[];
+    let mut layout_constructors = &[];
+    let mut field_index: u32 = 0;
+    for field in s.fields_as_written() {
+        let (name, _, _) = field;
+        let index_as_field = field_index as Field;
+        layout_struct_members = layout_struct_members.push_back(
+            quote { pub $name: ImmutableLayoutEntry },
+        );
+        layout_constructors = layout_constructors.push_back(
+            quote { $name: ImmutableLayoutEntry { index: $index_as_field } },
+        );
+        field_index += 1;
+    }
+    let layout_struct_members = layout_struct_members.join(quote {,});
+    let layout_constructors = layout_constructors.join(quote {,});
+
+    quote {
+        /// Entry in the immutables layout, representing a field's index in the serialized array.
+        pub struct ImmutableLayoutEntry {
+            pub index: Field,
+        }
+
+        pub struct ImmutablesLayoutFields {
+            $layout_struct_members
+        }
+
+        pub struct ImmutablesLayout<let N: u32> {
+            pub contract_name: str<N>,
+            pub serialized_len: u32,
+            pub fields: ImmutablesLayoutFields,
+        }
+
+        #[abi(immutables)]
+        pub global $immutables_layout_name: ImmutablesLayout<$module_name_len> = ImmutablesLayout {
+            contract_name: $module_name_str,
+            serialized_len: $concrete_serialized_len,
+            fields: ImmutablesLayoutFields { $layout_constructors }
+        };
     }
 }
 
@@ -183,7 +299,7 @@ pub comptime fn immutables(s: TypeDefinition) -> Quoted {
 /// for capsule array sizing, since `Serialize::N == Deserialize::N` for the same struct.
 ///
 /// Based on `derive_deserialize` from aztec-packages:
-/// `noir-protocol-circuits/crates/serde/src/serialization.nr`
+/// https://github.com/AztecProtocol/aztec-packages/blob/v4.0.0-devnet.1-patch.0/noir-projects/noir-protocol-circuits/crates/serde/src/serialization.nr#L243-L325
 ///
 /// We use a custom implementation instead of `aztec::protocol::meta::derive_deserialize` because
 /// that function uses an unqualified `Deserialize` reference in `stream_deserialize` for
