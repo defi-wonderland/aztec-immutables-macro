@@ -39,8 +39,9 @@ jobs:
 
       - name: Validate input version matches package.json
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.version != ''
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
-          INPUT_VERSION="${{ github.event.inputs.version }}"
           PKG_VERSION=$(node -p "require('./package.json').version")
           echo "Input version: $INPUT_VERSION"
           echo "package.json version: $PKG_VERSION"
