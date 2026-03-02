@@ -26,6 +26,7 @@
 //! - If wrong key is provided, the poseidon2 hash won't match `salt`
 
 mod public_key;
+pub mod test;
 
 use aztec::macros::aztec;
 

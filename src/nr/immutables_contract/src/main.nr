@@ -61,6 +61,8 @@
 //! When using both, the deployer must compute `salt` from both the actual_salt
 //! AND the immutables struct for verification to succeed.
 
+pub mod test;
+
 use aztec::macros::aztec;
 
 /// Immutables Contract with Mixed Usage
