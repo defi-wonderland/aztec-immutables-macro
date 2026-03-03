@@ -423,13 +423,16 @@ src/
 │   ├── schnorr_initializerless_account_contract/  # Initializerless Schnorr account
 │   │   └── src/
 │   │       ├── main.nr
-│   │       └── public_key.nr
+│   │       ├── public_key.nr
+│   │       └── test/                  # Noir TXE tests (disabled — see note below)
 │   ├── schnorr_account_contract/                  # Standard Schnorr account (for comparison)
 │   │   └── src/
 │   │       ├── main.nr
 │   │       └── public_key_note.nr
 │   └── immutables_contract/                       # Example: immutables + storage coexistence
-│       └── src/main.nr
+│       └── src/
+│           ├── main.nr
+│           └── test/                  # Noir TXE tests (partially disabled — see note below)
 └── ts/
     ├── immutables/                    # Generic TS utilities (salt, capsule, deploy)
     ├── immutables-contract/           # Typed wrapper for ImmutablesContract
@@ -471,6 +474,12 @@ yarn test:nr
 # Run TypeScript tests only
 yarn test:js
 ```
+
+> **Note — Noir TXE test limitations**
+>
+> Most Noir tests are disabled because the TXE (Test Execution Environment) does not support deploying contracts with a custom salt. The immutables pattern requires `salt = poseidon2_hash([actual_salt, ...immutables])`, but the TXE assigns a default salt, causing `Immutables::init()` to always fail with "Immutables do not match contract salt". Only storage-only tests (e.g., `increment_counter`) can run in the TXE. Full immutables verification is covered by the TypeScript E2E tests.
+>
+> See: [aztec-packages#16656](https://github.com/AztecProtocol/aztec-packages/issues/16656)
 
 ### Benchmark
 
