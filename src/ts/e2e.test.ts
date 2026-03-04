@@ -43,9 +43,14 @@ import { deploySchnorrAccount } from "./schnorr-account/utils.js";
  */
 async function deployAndRegister(
   wallet: CustomEmbeddedWallet,
-  options?: Parameters<typeof deploySchnorrInitializerlessAccount>[1],
+  deployer: AztecAddress,
+  options?: Parameters<typeof deploySchnorrInitializerlessAccount>[2],
 ) {
-  const result = await deploySchnorrInitializerlessAccount(wallet, options);
+  const result = await deploySchnorrInitializerlessAccount(
+    wallet,
+    deployer,
+    options,
+  );
   wallet.registerCustomAccount(result.address, result.account);
   return result;
 }
@@ -94,9 +99,13 @@ describe("Initializerless Account", () => {
 
   it("should mint to private balance of initializerless account", async () => {
     // Deploy SchnorrInitializerlessAccount
-    const initializerlessAccount = await deployAndRegister(wallet, {
-      secretKey: Fr.random(),
-    });
+    const initializerlessAccount = await deployAndRegister(
+      wallet,
+      deployerAddress,
+      {
+        secretKey: Fr.random(),
+      },
+    );
 
     const initialBalance = await token.methods
       .balance_of_private(initializerlessAccount.address)
@@ -141,9 +150,13 @@ describe("Initializerless Account", () => {
   });
 
   it("should allow unpublished account to send private transactions", async () => {
-    const unpublishedAccount = await deployAndRegister(wallet, {
-      secretKey: Fr.random(),
-    });
+    const unpublishedAccount = await deployAndRegister(
+      wallet,
+      deployerAddress,
+      {
+        secretKey: Fr.random(),
+      },
+    );
 
     // Verify it's truly unpublished
     const metadata = await wallet.getContractMetadata(
@@ -186,9 +199,13 @@ describe("Initializerless Account", () => {
   });
 
   it("should allow unpublished account to send public transactions", async () => {
-    const unpublishedAccount = await deployAndRegister(wallet, {
-      secretKey: Fr.random(),
-    });
+    const unpublishedAccount = await deployAndRegister(
+      wallet,
+      deployerAddress,
+      {
+        secretKey: Fr.random(),
+      },
+    );
 
     // Verify it's truly unpublished
     const metadata = await wallet.getContractMetadata(
@@ -226,9 +243,13 @@ describe("Initializerless Account", () => {
 
   it("should demonstrate both accounts working side by side with transfers", async () => {
     // Deploy both account types
-    const initializerlessAccount = await deployAndRegister(wallet, {
-      secretKey: Fr.random(),
-    });
+    const initializerlessAccount = await deployAndRegister(
+      wallet,
+      deployerAddress,
+      {
+        secretKey: Fr.random(),
+      },
+    );
     const standardAccount = await deploySchnorrAccount(wallet, {
       secretKey: Fr.random(),
       fee: { paymentMethod: sponsoredPaymentMethod },
@@ -376,9 +397,13 @@ describe("Initializerless Account", () => {
 
   it("should transfer private tokens from initializerless account to deployer", async () => {
     // Deploy an initializerless account and give it tokens
-    const initializerlessAccount = await deployAndRegister(wallet, {
-      secretKey: Fr.random(),
-    });
+    const initializerlessAccount = await deployAndRegister(
+      wallet,
+      deployerAddress,
+      {
+        secretKey: Fr.random(),
+      },
+    );
 
     // Snapshot deployer balance before (may have accumulated from prior tests)
     const deployerBalanceBefore = await token.methods
@@ -425,16 +450,20 @@ describe("Initializerless Account", () => {
 
   it("should verify contract metadata for published vs unpublished accounts", async () => {
     // Deploy a published account
-    const publishedAccount = await deployAndRegister(wallet, {
+    const publishedAccount = await deployAndRegister(wallet, deployerAddress, {
       secretKey: Fr.random(),
       publishClass: true,
       publishInstance: true,
     });
 
     // Deploy an unpublished account (PXE-only, default behavior)
-    const unpublishedAccount = await deployAndRegister(wallet, {
-      secretKey: Fr.random(),
-    });
+    const unpublishedAccount = await deployAndRegister(
+      wallet,
+      deployerAddress,
+      {
+        secretKey: Fr.random(),
+      },
+    );
 
     // Check contract metadata for published account
     const publishedMetadata = await wallet.getContractMetadata(

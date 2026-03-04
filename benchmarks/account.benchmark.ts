@@ -70,6 +70,7 @@ export default class AccountComparisonBenchmark extends Benchmark {
     // Deploy initializerless immutables account
     const immutablesAccount = await deploySchnorrInitializerlessAccount(
       wallet,
+      deployer,
       { secretKey: Fr.random() },
     );
     // Register account with wallet for signing

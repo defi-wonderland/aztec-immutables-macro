@@ -45,11 +45,13 @@ describe("Immutables Contract - Initializerless Pattern", () => {
     // Deploy two contracts with same immutables but different actualSalt
     const { contract: contract1 } = await deployImmutablesContract(
       wallet,
+      alice,
       IMMUTABLES_1,
       { actualSalt: ACTUAL_SALT_1 },
     );
     const { contract: contract2 } = await deployImmutablesContract(
       wallet,
+      alice,
       IMMUTABLES_1,
       { actualSalt: ACTUAL_SALT_2 },
     );
@@ -95,6 +97,7 @@ describe("Immutables Contract - Initializerless Pattern", () => {
     it("should deploy contract with immutables and read them back", async () => {
       const { contract } = await deployImmutablesContract(
         wallet,
+        alice,
         IMMUTABLES_1,
         {
           publishClass: true,
@@ -123,6 +126,7 @@ describe("Immutables Contract - Initializerless Pattern", () => {
     it("should fail with wrong capsule data", async () => {
       const { contract, capsuleData } = await deployImmutablesContract(
         wallet,
+        alice,
         IMMUTABLES_1,
       );
 
@@ -144,6 +148,7 @@ describe("Immutables Contract - Initializerless Pattern", () => {
   it("should reject store_immutables with wrong data", async () => {
     const { contract, capsuleData } = await deployImmutablesContract(
       wallet,
+      alice,
       IMMUTABLES_1,
     );
 
@@ -166,6 +171,7 @@ describe("Immutables Contract - Initializerless Pattern", () => {
   it("should allow re-storing correct immutables (PXE recovery)", async () => {
     const { contract, capsuleData } = await deployImmutablesContract(
       wallet,
+      alice,
       IMMUTABLES_1,
     );
 
@@ -190,7 +196,11 @@ describe("Immutables Contract - Initializerless Pattern", () => {
   });
 
   it("should read immutables from PXE store without manual capsule", async () => {
-    const { contract } = await deployImmutablesContract(wallet, IMMUTABLES_1);
+    const { contract } = await deployImmutablesContract(
+      wallet,
+      alice,
+      IMMUTABLES_1,
+    );
 
     // Read immutables WITHOUT a transient capsule -- data comes from persistent store
     // (store_immutables is called automatically during deployment)
@@ -205,7 +215,11 @@ describe("Immutables Contract - Initializerless Pattern", () => {
   // Unpublished (PXE-only) deployment tests
   describe("Unpublished (PXE-only)", () => {
     it("should deploy unpublished contract and read immutables back", async () => {
-      const { contract } = await deployImmutablesContract(wallet, IMMUTABLES_1);
+      const { contract } = await deployImmutablesContract(
+        wallet,
+        alice,
+        IMMUTABLES_1,
+      );
 
       expect(contract.address).toBeDefined();
       expect(contract.address.toString()).not.toBe(
@@ -248,6 +262,7 @@ describe("Immutables Contract - Mixed Usage (Immutables + Storage)", () => {
     // Deploy using standard initializer pattern
     const { contract } = await deployMixedUsageContract(
       wallet,
+      alice,
       IMMUTABLES_1,
       INITIAL_COUNTER,
     );
@@ -266,6 +281,7 @@ describe("Immutables Contract - Mixed Usage (Immutables + Storage)", () => {
   it("should allow storage mutation via increment", async () => {
     const { contract } = await deployMixedUsageContract(
       wallet,
+      alice,
       IMMUTABLES_1,
       INITIAL_COUNTER,
     );
@@ -283,6 +299,7 @@ describe("Immutables Contract - Mixed Usage (Immutables + Storage)", () => {
   it("should deploy mixed usage and read immutables back", async () => {
     const { contract } = await deployMixedUsageContract(
       wallet,
+      alice,
       IMMUTABLES_1,
       INITIAL_COUNTER,
     );
@@ -305,6 +322,7 @@ describe("Immutables Contract - Mixed Usage (Immutables + Storage)", () => {
   it("should verify immutables and increment storage", async () => {
     const { contract } = await deployMixedUsageContract(
       wallet,
+      alice,
       IMMUTABLES_1,
       INITIAL_COUNTER,
     );

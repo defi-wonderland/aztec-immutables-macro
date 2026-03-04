@@ -17,7 +17,8 @@
  * import { deployWithImmutables } from "@defi-wonderland/aztec-immutables-macro/immutables";
  *
  * // Deploy any contract with immutables
- * const { instance, capsuleData } = await deployWithImmutables(wallet, MyContractArtifact, [field1, field2]);
+ * const deployer = wallet.getAddress();
+ * const { instance, capsuleData } = await deployWithImmutables(wallet, deployer, MyContractArtifact, [field1, field2]);
  *
  * // Persist capsuleData for backup (needed for PXE recovery)
  * // capsuleData = [actualSalt, field1, field2]
@@ -425,6 +426,7 @@ export interface DeployWithImmutablesOptions extends ImmutablesInstanceOptions {
  * 5. Optionally publishes contract class and instance on-chain
  *
  * @param wallet - The wallet to deploy with
+ * @param deployer - The account address that pays fees and sends the publish transaction
  * @param artifact - The contract artifact
  * @param serializedImmutables - The immutables serialized as Fr[]
  * @param options - Optional deployment options
@@ -432,12 +434,11 @@ export interface DeployWithImmutablesOptions extends ImmutablesInstanceOptions {
  */
 export async function deployWithImmutables(
   wallet: Wallet,
+  deployer: AztecAddress,
   artifact: ContractArtifact,
   serializedImmutables: Fr[],
   options?: DeployWithImmutablesOptions,
 ): Promise<DeployWithImmutablesResult> {
-  const deployerAddress = (await wallet.getAccounts())[0]!.item;
-
   // Create contract instance with immutables committed via salt
   const { instance, actualSalt } = await createImmutablesInstance(
     artifact,
@@ -471,7 +472,7 @@ export async function deployWithImmutables(
       storeImmutablesAbi,
       [capsuleData],
     );
-    await storeCall.simulate({ from: deployerAddress });
+    await storeCall.simulate({ from: deployer });
   }
 
   if (options?.publishInstance) {
@@ -517,7 +518,7 @@ export async function deployWithImmutables(
     // Send all publish + init calls as one merged transaction
     if (payloads.length > 0) {
       const merged = mergeExecutionPayloads(payloads);
-      await wallet.sendTx(merged, { from: deployerAddress });
+      await wallet.sendTx(merged, { from: deployer });
     }
   }
 

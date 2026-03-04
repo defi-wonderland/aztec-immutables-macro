@@ -18,7 +18,7 @@
  *
  * ```typescript
  * // Deploy the account contract using the proper account deployment flow
- * const { contract, secretKey } = await deploySchnorrAccount(wallet);
+ * const { contract, secretKey } = await deploySchnorrAccount(wallet, { secretKey: Fr.random() });
  *
  * // The signing key is derived from the secret key
  * ```
@@ -127,11 +127,13 @@ export { SchnorrAccountContract, SchnorrAccountContractArtifact };
  * the key storage/retrieval pattern.
  *
  * @param wallet - The wallet to deploy with
+ * @param deployer - The account address that pays fees and sends the deploy transaction
  * @param options - Optional deployment options
  * @returns The deployed contract instance and keys
  */
 export async function deployLocalSchnorrAccount(
   wallet: Wallet,
+  deployer: AztecAddress,
   options?: {
     signingPublicKey?: SigningPublicKey;
     salt?: Fr;
@@ -146,15 +148,12 @@ export async function deployLocalSchnorrAccount(
     y: new Fr(0xfeedface5678abcdn),
   };
 
-  // Get the deployer address (first registered account)
-  const deployerAddress = (await wallet.getAccounts())[0]!.item;
-
   // Deploy our local SchnorrAccount contract with the initializer
   const contract = await SchnorrAccountContract.deploy(
     wallet,
     signingPublicKey.x,
     signingPublicKey.y,
-  ).send({ from: deployerAddress });
+  ).send({ from: deployer });
 
   return {
     contract,

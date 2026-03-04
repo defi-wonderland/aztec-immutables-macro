@@ -1,5 +1,6 @@
 import { Fr } from "@aztec/aztec.js/fields";
 import type { Wallet } from "@aztec/aztec.js/wallet";
+import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import {
   ImmutablesContractContract,
   ImmutablesContractContractArtifact,
@@ -60,17 +61,20 @@ export interface DeployImmutablesContractResult {
  * Deploys the ImmutablesContract with the given immutables using the initializerless pattern.
  *
  * @param wallet - The wallet to deploy with
+ * @param deployer - The account address that pays fees and sends the publish transaction
  * @param immutables - The immutables to commit to the contract address
  * @param options - Optional deployment options
  * @returns The deployed contract and capsuleData for backup/recovery
  */
 export async function deployImmutablesContract(
   wallet: Wallet,
+  deployer: AztecAddress,
   immutables: Immutables,
   options?: DeployWithImmutablesOptions,
 ): Promise<DeployImmutablesContractResult> {
   const result = await generic.deployWithImmutables(
     wallet,
+    deployer,
     ImmutablesContractContractArtifact,
     serializeImmutables(immutables),
     options,
@@ -96,17 +100,20 @@ export async function deployImmutablesContract(
  * - Immutables are committed via the salt derivation
  *
  * @param wallet - The wallet to deploy with
+ * @param deployer - The account address that pays fees and sends the publish transaction
  * @param immutables - The immutables to commit to the contract address
  * @param initialCounter - The initial counter value for storage
  * @returns The deployed contract and capsuleData for backup/recovery
  */
 export async function deployMixedUsageContract(
   wallet: Wallet,
+  deployer: AztecAddress,
   immutables: Immutables,
   initialCounter: bigint,
 ): Promise<DeployImmutablesContractResult> {
   const result = await generic.deployWithImmutables(
     wallet,
+    deployer,
     ImmutablesContractContractArtifact,
     serializeImmutables(immutables),
     {

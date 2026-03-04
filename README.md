@@ -130,7 +130,7 @@ import { deployWithImmutables } from "@defi-wonderland/aztec-immutables-macro/im
 // Deploy — handles salt derivation, PXE registration, publication,
 // and persistent capsule storage automatically
 const { instance, capsuleData } = await deployWithImmutables(
-  wallet, MyContractArtifact, [field1, field2]
+  wallet, deployer, MyContractArtifact, [field1, field2]
 );
 ```
 
@@ -180,10 +180,10 @@ Contracts deployed with the immutables pattern can be either **published** (on-c
 
 ```typescript
 // Unpublished deployment (default — PXE-only)
-const result = await deployWithImmutables(wallet, artifact, serializedImmutables);
+const result = await deployWithImmutables(wallet, deployer, artifact, serializedImmutables);
 
 // Published deployment (on-chain)
-const result = await deployWithImmutables(wallet, artifact, serializedImmutables, {
+const result = await deployWithImmutables(wallet, deployer, artifact, serializedImmutables, {
   publishClass: true,
   publishInstance: true,
 });
@@ -196,7 +196,7 @@ The immutables pattern is compatible with `#[storage]`. Both can coexist in the 
 For contracts that need both immutables and an initializer (e.g., to set up mutable storage), pass the `initializer` and `initializerArgs` options to `deployWithImmutables`. This computes the correct `initializationHash` while still deriving the salt from immutables:
 
 ```typescript
-const result = await deployWithImmutables(wallet, artifact, serializedImmutables, {
+const result = await deployWithImmutables(wallet, deployer, artifact, serializedImmutables, {
   initializer: "initialize",
   initializerArgs: [initialCounter],
 });
@@ -258,7 +258,7 @@ const {
   address,         // the deterministic contract address
   capsuleData,     // [actualSalt, pubkey.x, pubkey.y] — persist for backup
   signingPublicKey,
-} = await deploySchnorrInitializerlessAccount(wallet);
+} = await deploySchnorrInitializerlessAccount(wallet, deployer);
 
 // Register the account with your wallet for signing
 // (wallet-specific — depends on your wallet implementation)
@@ -292,7 +292,7 @@ const { address, capsuleData } = await computeSchnorrAccountAddress(signingKey);
 For custom deployment options:
 
 ```typescript
-await deploySchnorrInitializerlessAccount(wallet, {
+await deploySchnorrInitializerlessAccount(wallet, deployer, {
   secretKey: mySecretKey,        // use specific secret instead of random
   actualSalt: mySalt,            // deterministic salt instead of random
   publishClass: true,            // publish contract class on-chain
@@ -319,7 +319,7 @@ const serialized = serializeFromLayout(PrivateRecoveryModuleArtifact, {
 });
 
 const { instance, capsuleData } = await deployWithImmutables(
-  wallet, PrivateRecoveryModuleArtifact, serialized
+  wallet, deployer, PrivateRecoveryModuleArtifact, serialized
 );
 ```
 

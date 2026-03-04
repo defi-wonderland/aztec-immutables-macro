@@ -340,11 +340,13 @@ export interface DeploySchnorrInitializerlessAccountResult {
  * The returned `capsuleData` should be persisted externally for PXE recovery.
  *
  * @param wallet - Any Aztec wallet (not test-specific)
+ * @param deployer - The account address that pays fees and sends the publish transaction
  * @param options - Deployment options (secretKey, actualSalt, publication flags, etc.)
  * @returns Everything needed to use the account: contract, keys, capsuleData, account
  */
 export async function deploySchnorrInitializerlessAccount(
   wallet: Wallet,
+  deployer: AztecAddress,
   options?: DeployWithImmutablesOptions,
 ): Promise<DeploySchnorrInitializerlessAccountResult> {
   const secretKey = options?.secretKey ?? Fr.random();
@@ -364,6 +366,7 @@ export async function deploySchnorrInitializerlessAccount(
   // Deploy with immutables (handles salt, PXE registration, store_immutables, publication)
   const deployResult = await generic.deployWithImmutables(
     wallet,
+    deployer,
     SchnorrInitializerlessAccountContractArtifact,
     serializeSigningKey(signingPublicKey),
     { ...options, publicKeys, secretKey },
