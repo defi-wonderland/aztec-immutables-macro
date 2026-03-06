@@ -278,19 +278,14 @@ export async function createSchnorrInitializerlessAccount(
   signingPrivateKey: GrumpkinScalar;
   signingPublicKey: SigningPublicKey;
 }> {
-  // Derive signing key from secret
-  const signingPrivateKey = GrumpkinScalar.fromHighLow(Fr.ZERO, secretKey);
+  // Derive signing key from secret (must match deploySchnorrInitializerlessAccount)
+  const signingPrivateKey = deriveSigningKey(secretKey);
   const schnorr = new Schnorr();
   const signingKey = await schnorr.computePublicKey(signingPrivateKey);
 
-  // Convert to Fr - signingKey.x/y may already be Fr or bigint depending on package version
   const signingPublicKey: SigningPublicKey = {
-    x: new Fr(
-      typeof signingKey.x === "bigint" ? signingKey.x : signingKey.x.toBigInt(),
-    ),
-    y: new Fr(
-      typeof signingKey.y === "bigint" ? signingKey.y : signingKey.y.toBigInt(),
-    ),
+    x: new Fr(signingKey.x.toBigInt()),
+    y: new Fr(signingKey.y.toBigInt()),
   };
 
   const account = new SchnorrInitializerlessAccount(
