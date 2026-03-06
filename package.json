@@ -54,7 +54,7 @@
     "@aztec/wallets": "4.0.0-devnet.2-patch.1",
     "@defi-wonderland/aztec-benchmark": "4.0.0-devnet.2-patch.1",
     "@defi-wonderland/aztec-standards": "https://github.com/defi-wonderland/aztec-standards/releases/download/prerelease-85d235b/defi-wonderland-aztec-standards-4.0.0-devnet.2-patch.1-prerelease.85d235b.tgz",
-    "@types/node": "25.0.2"
+    "@types/node": "25.3.5"
   },
   "devDependencies": {
     "@commitlint/cli": "20.2.0",
