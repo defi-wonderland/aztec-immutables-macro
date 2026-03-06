@@ -439,6 +439,17 @@ export async function deployWithImmutables(
   serializedImmutables: Fr[],
   options?: DeployWithImmutablesOptions,
 ): Promise<DeployWithImmutablesResult> {
+  // Validate serialized immutables against the #[abi(immutables)] layout in the artifact.
+  // Uses serialized_len (not field count) since nested structs flatten to multiple Fr elements.
+  // This must happen before registerContract to avoid leaving PXE in an inconsistent state.
+  const layout = getImmutablesLayout(artifact);
+  if (layout && serializedImmutables.length !== layout.serializedLen) {
+    const fieldNames = Object.keys(layout.fields).join(", ");
+    throw new Error(
+      `Immutables serialized length mismatch: expected ${layout.serializedLen} Fr elements for fields (${fieldNames}), got ${serializedImmutables.length}`,
+    );
+  }
+
   // Create contract instance with immutables committed via salt
   const { instance, actualSalt } = await createImmutablesInstance(
     artifact,
@@ -448,16 +459,6 @@ export async function deployWithImmutables(
 
   // Register the contract with the wallet (PXE)
   await wallet.registerContract(instance, artifact, options?.secretKey);
-
-  // Validate serialized immutables against the #[abi(immutables)] layout in the artifact.
-  // Uses serialized_len (not field count) since nested structs flatten to multiple Fr elements.
-  const layout = getImmutablesLayout(artifact);
-  if (layout && serializedImmutables.length !== layout.serializedLen) {
-    const fieldNames = Object.keys(layout.fields).join(", ");
-    throw new Error(
-      `Immutables serialized length mismatch: expected ${layout.serializedLen} Fr elements for fields (${fieldNames}), got ${serializedImmutables.length}`,
-    );
-  }
 
   // Persist immutables to PXE's CapsuleStore via the store_immutables utility function.
   // This makes immutables available for all subsequent calls without transient capsules.
