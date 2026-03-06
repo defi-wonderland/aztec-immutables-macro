@@ -116,7 +116,7 @@ unconstrained fn store_immutables(capsule_data: [Field; 1 + N]) {
 }
 ```
 
-Where `N` is the total serialized length of your immutables (e.g., `3` for a struct with two `Field` values: 1 for `actual_salt` + 2 for the fields).
+Where `N` is the serialized length of your immutables (e.g., `2` for a struct with two `Field` values). The `1 +` in `[Field; 1 + N]` accounts for `actual_salt`.
 
 The `store()` method validates `poseidon2_hash(capsule_data) == instance.salt` before persisting, so corrupt data cannot be stored. This function can be called at any time — during deployment, for PXE recovery after data loss, or when migrating to a new PXE.
 
