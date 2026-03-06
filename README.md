@@ -127,6 +127,9 @@ This repo provides TypeScript utilities in `src/ts/immutables/index.ts` that han
 ```typescript
 import { deployWithImmutables } from "@defi-wonderland/aztec-immutables-macro/immutables";
 
+// The deployer is the account that pays fees and sends publish transactions
+const deployer = wallet.getAddress();
+
 // Deploy — handles salt derivation, PXE registration, publication,
 // and persistent capsule storage automatically
 const { instance, capsuleData } = await deployWithImmutables(
