@@ -28,6 +28,7 @@ import { Fr } from "@aztec/aztec.js/fields";
 import type { Wallet } from "@aztec/aztec.js/wallet";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { deriveSigningKey } from "@aztec/stdlib/keys";
+import { Schnorr } from "@aztec/foundation/crypto/schnorr";
 import type { EmbeddedWallet } from "@aztec/wallets/embedded";
 import {
   SchnorrAccountContract,
@@ -80,11 +81,13 @@ export async function deploySchnorrAccount(
   const secretKey = options?.secretKey ?? Fr.random();
   const salt = options?.salt ?? Fr.random();
 
-  // Derive signing key from secret to get the public key
-  const signingKey = deriveSigningKey(secretKey);
+  // Derive signing public key from secret via scalar multiplication
+  const signingPrivateKey = deriveSigningKey(secretKey);
+  const schnorr = new Schnorr();
+  const publicKeyPoint = await schnorr.computePublicKey(signingPrivateKey);
   const signingPublicKey: SigningPublicKey = {
-    x: new Fr(signingKey.lo),
-    y: new Fr(signingKey.hi),
+    x: new Fr(publicKeyPoint.x.toBigInt()),
+    y: new Fr(publicKeyPoint.y.toBigInt()),
   };
 
   // Use EmbeddedWallet.createSchnorrAccount which uses the SDK's SchnorrAccountContract
