@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Check out github repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Aztec environment
         uses: defi-wonderland/aztec-ci-actions/actions/setup-aztec@v0
