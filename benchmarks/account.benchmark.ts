@@ -75,7 +75,7 @@ export default class AccountComparisonBenchmark extends Benchmark {
       { secretKey: Fr.random() },
     );
     // Register account with wallet for signing
-    wallet.registerCustomAccount(
+    await wallet.registerCustomAccount(
       immutablesAccount.address,
       immutablesAccount.account,
     );
