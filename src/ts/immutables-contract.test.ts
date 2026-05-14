@@ -115,7 +115,7 @@ describe("Immutables Contract - Initializerless Pattern", () => {
       expect(metadata.isContractPublished).toBe(true);
 
       // Immutables loaded from persistent store (store_immutables called during deployment)
-      const result = await contract.methods.get_signing_key().simulate({
+      const { result } = await contract.methods.get_signing_key().simulate({
         from: alice,
       });
 
@@ -176,7 +176,7 @@ describe("Immutables Contract - Initializerless Pattern", () => {
     );
 
     // Verify immutables are readable (stored during deployment)
-    const result1 = await contract.methods
+    const { result: result1 } = await contract.methods
       .get_signing_key()
       .simulate({ from: alice });
     expect(result1[0]).toEqual(IMMUTABLES_1.signingKeyX.toBigInt());
@@ -188,7 +188,7 @@ describe("Immutables Contract - Initializerless Pattern", () => {
       .simulate({ from: alice });
 
     // Verify immutables are still readable after re-store
-    const result2 = await contract.methods
+    const { result: result2 } = await contract.methods
       .get_signing_key()
       .simulate({ from: alice });
     expect(result2[0]).toEqual(IMMUTABLES_1.signingKeyX.toBigInt());
@@ -204,7 +204,7 @@ describe("Immutables Contract - Initializerless Pattern", () => {
 
     // Read immutables WITHOUT a transient capsule -- data comes from persistent store
     // (store_immutables is called automatically during deployment)
-    const result = await contract.methods
+    const { result } = await contract.methods
       .get_signing_key()
       .simulate({ from: alice });
 
@@ -231,7 +231,7 @@ describe("Immutables Contract - Initializerless Pattern", () => {
       expect(metadata.isContractPublished).toBe(false);
 
       // Immutables loaded from persistent store (store_immutables called during deployment)
-      const result = await contract.methods.get_signing_key().simulate({
+      const { result } = await contract.methods.get_signing_key().simulate({
         from: alice,
       });
 
@@ -272,7 +272,7 @@ describe("Immutables Contract - Mixed Usage (Immutables + Storage)", () => {
     expect(contract.address.toString()).not.toBe(AztecAddress.ZERO.toString());
 
     // Read counter via public function - should return initial value
-    const counter = await contract.methods.get_counter().simulate({
+    const { result: counter } = await contract.methods.get_counter().simulate({
       from: alice,
     });
     expect(counter).toEqual(INITIAL_COUNTER);
@@ -290,7 +290,7 @@ describe("Immutables Contract - Mixed Usage (Immutables + Storage)", () => {
     await contract.methods.increment_counter().send({ from: alice });
 
     // Read counter - should be incremented
-    const counter = await contract.methods.get_counter().simulate({
+    const { result: counter } = await contract.methods.get_counter().simulate({
       from: alice,
     });
     expect(counter).toEqual(INITIAL_COUNTER + 1n);
@@ -305,13 +305,13 @@ describe("Immutables Contract - Mixed Usage (Immutables + Storage)", () => {
     );
 
     // Storage works
-    const counter = await contract.methods.get_counter().simulate({
+    const { result: counter } = await contract.methods.get_counter().simulate({
       from: alice,
     });
     expect(counter).toEqual(INITIAL_COUNTER);
 
     // Immutables loaded from persistent store (store_immutables called during deployment)
-    const result = await contract.methods
+    const { result } = await contract.methods
       .get_signing_key()
       .simulate({ from: alice });
 
@@ -335,7 +335,7 @@ describe("Immutables Contract - Mixed Usage (Immutables + Storage)", () => {
       .send({ from: alice });
 
     // Counter should be incremented
-    const counter = await contract.methods.get_counter().simulate({
+    const { result: counter } = await contract.methods.get_counter().simulate({
       from: alice,
     });
     expect(counter).toEqual(INITIAL_COUNTER + 1n);

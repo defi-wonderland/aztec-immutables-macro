@@ -22,8 +22,12 @@ const { NODE_URL = "http://localhost:8080" } = process.env;
  * ecdsasecp256k1, ecdsasecp256r1) stored in its WalletDB. Custom accounts like
  * SchnorrInitializerlessAccount aren't registered through that path.
  *
- * This subclass overrides the protected `getAccountFromAddress` method to first
- * check a custom accounts map, then fall back to the default WalletDB lookup.
+ * This subclass overrides `getAccountFromAddress` to check a custom accounts
+ * map first, and also registers custom accounts in the WalletDB as 'schnorr'
+ * type so `simulateViaEntrypoint` can find them when building transaction
+ * requests (it calls `walletDB.retrieveAccount` to get the account type for
+ * stub account creation — only the type is needed there).
+ *
  * Since `NodeEmbeddedWallet.create()` uses `new this(...)`, calling
  * `CustomEmbeddedWallet.create()` returns a `CustomEmbeddedWallet` instance.
  */
@@ -31,13 +35,26 @@ export class CustomEmbeddedWallet extends EmbeddedWallet {
   private customAccounts = new Map<string, Account>();
 
   /**
-   * Register a custom account for signing.
+   * Register a custom Schnorr-compatible account for signing.
    *
-   * When the wallet needs to sign a transaction `from` the given address,
-   * it will use this Account object to create auth witnesses.
+   * Stores the account in both the local custom-accounts map (for auth witness
+   * creation via `getAccountFromAddress`) and in the WalletDB as type 'schnorr'
+   * (so `simulateViaEntrypoint` can find the account type for stub creation).
+   *
+   * Dummy values are used for secretKey/salt/signingKey in the WalletDB entry
+   * because only `type` is read back from it during stub-based simulation.
    */
-  registerCustomAccount(address: AztecAddress, account: Account) {
+  async registerCustomAccount(address: AztecAddress, account: Account) {
     this.customAccounts.set(address.toString(), account);
+    // Register in walletDB so simulateViaEntrypoint can look up the account type.
+    // Only `type` is used from this entry; secretKey/salt/signingKey are placeholders.
+    await this.walletDB.storeAccount(address, {
+      type: "schnorr",
+      secretKey: Fr.ZERO,
+      salt: Fr.ZERO,
+      signingKey: Buffer.alloc(32),
+      alias: undefined,
+    });
   }
 
   protected override async getAccountFromAddress(
