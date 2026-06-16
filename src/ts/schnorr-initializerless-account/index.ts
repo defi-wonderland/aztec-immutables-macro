@@ -254,8 +254,18 @@ export class SchnorrInitializerlessAuthWitnessProvider implements AuthWitnessPro
       messageHash.toBuffer(),
       this.signingPrivateKey,
     );
-    return new AuthWitness(messageHash, [...signature.toBuffer()]);
+    return new AuthWitness(messageHash, [
+      ...scalarToLimbs(signature.s),
+      ...scalarToLimbs(signature.e),
+    ]);
   }
+}
+
+function scalarToLimbs(scalar: Buffer): [Fr, Fr] {
+  const value = BigInt(`0x${scalar.toString("hex")}`);
+  const limbMask = (1n << 128n) - 1n;
+
+  return [new Fr(value & limbMask), new Fr(value >> 128n)];
 }
 
 // ---------------------------------------------------------------------------

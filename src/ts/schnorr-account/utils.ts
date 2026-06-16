@@ -60,7 +60,7 @@ export interface DeploySchnorrAccountResult {
  * 1. Creates account with secret key (uses the default SchnorrAccountContract)
  * 2. Registers the account with PXE (including public keys for encryption)
  * 3. Deploys and initializes the contract
- * 4. Note delivery is handled automatically via MessageDelivery.CONSTRAINED_ONCHAIN
+ * 4. Note delivery is handled automatically by the SDK account contract
  *
  * Note: This uses the SDK's SchnorrAccountContract from @aztec/accounts which has
  * a different class ID than our local contract. For benchmarking the local contract,
@@ -103,10 +103,11 @@ export async function deploySchnorrAccount(
   // The account contract doesn't exist yet, so it cannot sign its own deployment tx.
   const deployMethod = await accountManager.getDeployMethod();
   await deployMethod.send({ from: NO_FROM, fee: options?.fee });
+  const accountAddress = await deployMethod.getAddress();
 
   // Get the deployed contract instance using our local artifact
   // Note: This will have the same address but uses our local artifact
-  const contract = SchnorrAccountContract.at(accountManager.address, wallet);
+  const contract = SchnorrAccountContract.at(accountAddress, wallet);
 
   return {
     contract,
@@ -152,12 +153,21 @@ export async function deployLocalSchnorrAccount(
     y: new Fr(0xfeedface5678abcdn),
   };
 
+  const deploy = options?.salt
+    ? SchnorrAccountContract.deploy(
+        wallet,
+        signingPublicKey.x,
+        signingPublicKey.y,
+        { salt: options.salt },
+      )
+    : SchnorrAccountContract.deploy(
+        wallet,
+        signingPublicKey.x,
+        signingPublicKey.y,
+      );
+
   // Deploy our local SchnorrAccount contract with the initializer
-  const { contract } = await SchnorrAccountContract.deploy(
-    wallet,
-    signingPublicKey.x,
-    signingPublicKey.y,
-  ).send({ from: deployer });
+  const { contract } = await deploy.send({ from: deployer });
 
   return {
     contract,

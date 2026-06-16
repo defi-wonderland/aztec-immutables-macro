@@ -339,6 +339,7 @@ export async function createImmutablesInstance(
       salt,
       publicKeys: options?.publicKeys ?? PublicKeys.default(),
       deployer: options?.deployer ?? AztecAddress.ZERO,
+      immutablesHash: Fr.ZERO,
     });
   } else {
     // No initializer path: initializationHash = Fr.ZERO
@@ -350,6 +351,7 @@ export async function createImmutablesInstance(
       currentContractClassId: contractClass.id,
       originalContractClassId: contractClass.id,
       initializationHash: Fr.ZERO,
+      immutablesHash: Fr.ZERO,
       publicKeys: options?.publicKeys ?? PublicKeys.default(),
     };
     const address = await computeContractAddressFromInstance(rawInstance);

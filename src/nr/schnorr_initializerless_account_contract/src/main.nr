@@ -44,7 +44,6 @@ pub contract SchnorrInitializerlessAccount {
         oracle::{
             auth_witness::get_auth_witness,
             get_nullifier_membership_witness::get_low_nullifier_membership_witness,
-            notes::set_sender_for_tags,
         },
         protocol::address::AztecAddress,
     };
@@ -77,11 +76,6 @@ pub contract SchnorrInitializerlessAccount {
     #[external("private")]
     #[allow_phase_change]
     fn entrypoint(app_payload: AppPayload, fee_payment_method: u8, cancellable: bool) {
-        // Safety: set_sender_for_tags is an oracle call that registers this account
-        // as the sender for private note delivery in nested calls. Required for
-        // contracts like Token to be able to create notes owned by this account.
-        unsafe { set_sender_for_tags(self.address) };
-
         let actions = AccountActions::init(self.context, is_valid_impl);
         actions.entrypoint(app_payload, fee_payment_method, cancellable);
     }
@@ -115,17 +109,17 @@ pub contract SchnorrInitializerlessAccount {
         // Load auth witness (signature)
         // Safety: The witness is only used as a "magical value" that makes the
         // signature verification below pass. Hence it's safe.
-        let witness: [Field; 64] = unsafe { get_auth_witness(outer_hash) };
-        let mut signature: [u8; 64] = [0; 64];
-        for i in 0..64 {
-            signature[i] = witness[i] as u8;
-        }
+        let limbs: [Field; 4] = unsafe { get_auth_witness(outer_hash) };
+        let signature = (
+            std::embedded_curve_ops::EmbeddedCurveScalar::new(limbs[0], limbs[1]),
+            std::embedded_curve_ops::EmbeddedCurveScalar::new(limbs[2], limbs[3]),
+        );
 
         let pub_key =
             std::embedded_curve_ops::EmbeddedCurvePoint { x: public_key.x, y: public_key.y };
 
         // Verify Schnorr signature of the payload
-        schnorr::verify_signature(pub_key, signature, outer_hash.to_be_bytes::<32>())
+        schnorr::verify_signature(pub_key, signature, outer_hash)
     }
 
     /// Helper to check validity of private authwitnesses (unconstrained).
@@ -153,24 +147,23 @@ pub contract SchnorrInitializerlessAccount {
             inner_hash,
         );
 
-        let witness: [Field; 64] = get_auth_witness(message_hash);
-        let mut signature: [u8; 64] = [0; 64];
-        for i in 0..64 {
-            signature[i] = witness[i] as u8;
-        }
+        let limbs: [Field; 4] = get_auth_witness(message_hash);
+        let signature = (
+            std::embedded_curve_ops::EmbeddedCurveScalar::new(limbs[0], limbs[1]),
+            std::embedded_curve_ops::EmbeddedCurveScalar::new(limbs[2], limbs[3]),
+        );
 
         let pub_key =
             std::embedded_curve_ops::EmbeddedCurvePoint { x: public_key.x, y: public_key.y };
 
-        let valid_in_private =
-            schnorr::verify_signature(pub_key, signature, message_hash.to_be_bytes::<32>());
+        let valid_in_private = schnorr::verify_signature(pub_key, signature, message_hash);
 
         // Check if the authwit has already been consumed
         let nullifier = compute_authwit_nullifier(self.address, inner_hash);
         let siloed_nullifier = compute_siloed_nullifier(consumer, nullifier);
-        let lower_wit =
+        let (leaf_preimage, _witness) =
             get_low_nullifier_membership_witness(self.context.block_header(), siloed_nullifier);
-        let is_spent = lower_wit.leaf_preimage.nullifier == siloed_nullifier;
+        let is_spent = leaf_preimage.nullifier == siloed_nullifier;
 
         !is_spent & valid_in_private
     }

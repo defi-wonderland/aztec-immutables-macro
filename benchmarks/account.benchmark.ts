@@ -13,7 +13,7 @@
  * key-loading difference (CapsuleStore vs SinglePrivateImmutable) matters.
  */
 
-import { AztecAddress } from "@aztec/aztec.js/addresses";
+import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { NO_FROM } from "@aztec/aztec.js/account";
 import { type ContractFunctionInteractionCallIntent } from "@aztec/aztec.js/authorization";
 import type { SponsoredFeePaymentMethod } from "@aztec/aztec.js/fee/testing";
