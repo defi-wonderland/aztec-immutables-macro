@@ -44,7 +44,10 @@ export class CustomEmbeddedWallet extends EmbeddedWallet {
    * Dummy values are used for secretKey/salt/signingKey in the WalletDB entry
    * because only `type` is read back from it during stub-based simulation.
    */
-  async registerCustomAccount(address: AztecAddress, account: Account) {
+  async registerCustomAccount(
+    address: AztecAddress,
+    account: Account,
+  ): Promise<void> {
     this.customAccounts.set(address.toString(), account);
     // Register in walletDB so simulateViaEntrypoint can look up the account type.
     // Only `type` is used from this entry; secretKey/salt/signingKey are placeholders.
