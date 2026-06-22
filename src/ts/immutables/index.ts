@@ -345,7 +345,8 @@ export async function createImmutablesInstance(
     // No initializer path: initializationHash = Fr.ZERO
     const contractClass = await getContractClassFromArtifact(artifact);
     const rawInstance: ContractInstance = {
-      version: 1,
+      // Aztec v5 ContractInstance schema is version 2.
+      version: 2,
       salt,
       deployer: options?.deployer ?? AztecAddress.ZERO,
       currentContractClassId: contractClass.id,

@@ -65,7 +65,6 @@ export default class AccountComparisonBenchmark extends Benchmark {
       "BT",
       18n,
       deployer,
-      AztecAddress.ZERO,
     ).send({ from: deployer });
 
     // Deploy initializerless immutables account
@@ -137,6 +136,9 @@ export default class AccountComparisonBenchmark extends Benchmark {
     } = context;
 
     const TRANSFER_AMOUNT = 10n;
+    // Benchmark intent types still narrow caller to AztecAddress, but account
+    // self-deploys must use the SDK's NO_FROM sentinel at runtime.
+    const noFromCaller = NO_FROM as unknown as AztecAddress;
 
     const methods: NamedBenchmarkedInteraction[] = [
       // --- Immutables Account ---
@@ -172,7 +174,7 @@ export default class AccountComparisonBenchmark extends Benchmark {
       // --- Standard Account ---
       {
         interaction: {
-          caller: NO_FROM,
+          caller: noFromCaller,
           action: standardAccountInitialize,
         },
         name: "Standard Account: deploy + initialize",
