@@ -111,9 +111,30 @@ pub contract ImmutablesContract {
     // by #[aztec]'s check_all_functions_have_context_macro).
     /// Persists immutables data to the PXE's CapsuleStore.
     /// Called once after deployment via `.simulate()` from TypeScript.
-    #[external("utility")]
-    unconstrained fn store_immutables(capsule_data: [Field; 3]) {
-        Immutables::store(self.context, capsule_data);
+    ///
+    /// Implemented as a private (not utility) function because #[noinitcheck] cannot be
+    /// applied to utility functions on contracts that have an #[initializer]. The validation
+    /// assertion is constrained (proven); the capsule write is a local PXE side effect via
+    /// an unsafe oracle call executed during simulation.
+    #[external("private")]
+    #[noinitcheck]
+    fn store_immutables(capsule_data: [Field; 3]) {
+        let address = self.context.this_address();
+        let salt = aztec::protocol::hash::poseidon2_hash(capsule_data);
+        let instance = aztec::oracle::get_contract_instance::get_contract_instance(address);
+        assert_eq(
+            salt,
+            instance.salt,
+            "Immutables data does not match contract salt, refusing to store",
+        );
+        unsafe {
+            aztec::oracle::capsules::store(
+                address,
+                0x1a0e563e6a2087002308173ed42dec43b9543a3684de63d6be9a958c0eaf5c45, // IMMUTABLES_SLOT
+                capsule_data,
+                aztec::protocol::address::AztecAddress::zero(),
+            );
+        }
     }
 
     /// Example private function that uses immutables.

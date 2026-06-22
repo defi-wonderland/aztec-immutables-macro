@@ -116,9 +116,11 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
       expect(metadata.isContractPublished).toBe(true);
 
       // Immutables loaded from persistent store (store_immutables called during deployment)
-      const result = await contract.methods.get_signing_public_key().simulate({
-        from: alice,
-      });
+      const { result } = await contract.methods
+        .get_signing_public_key()
+        .simulate({
+          from: alice,
+        });
 
       expect(result[0]).toEqual(signingPublicKey.x.toBigInt());
       expect(result[1]).toEqual(signingPublicKey.y.toBigInt());
@@ -155,14 +157,14 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
       expect(account1.address.toString()).not.toBe(account2.address.toString());
 
       // Verify each contract returns its correct key (loaded from persistent store)
-      const result1 = await account1.contract.methods
+      const { result: result1 } = await account1.contract.methods
         .get_signing_public_key()
         .simulate({ from: alice });
 
       expect(result1[0]).toEqual(account1.signingPublicKey.x.toBigInt());
       expect(result1[1]).toEqual(account1.signingPublicKey.y.toBigInt());
 
-      const result2 = await account2.contract.methods
+      const { result: result2 } = await account2.contract.methods
         .get_signing_public_key()
         .simulate({ from: alice });
 
@@ -232,9 +234,11 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
       expect(metadata.isContractPublished).toBe(false);
 
       // Immutables loaded from persistent store (store_immutables called during deployment)
-      const result = await contract.methods.get_signing_public_key().simulate({
-        from: alice,
-      });
+      const { result } = await contract.methods
+        .get_signing_public_key()
+        .simulate({
+          from: alice,
+        });
 
       expect(result[0]).toEqual(signingPublicKey.x.toBigInt());
       expect(result[1]).toEqual(signingPublicKey.y.toBigInt());
@@ -260,14 +264,14 @@ describe("SchnorrInitializerlessAccount - Initializerless Immutables Pattern", (
       expect(account1.address.toString()).not.toBe(account2.address.toString());
 
       // Verify each contract returns its correct key (loaded from persistent store)
-      const result1 = await account1.contract.methods
+      const { result: result1 } = await account1.contract.methods
         .get_signing_public_key()
         .simulate({ from: alice });
 
       expect(result1[0]).toEqual(account1.signingPublicKey.x.toBigInt());
       expect(result1[1]).toEqual(account1.signingPublicKey.y.toBigInt());
 
-      const result2 = await account2.contract.methods
+      const { result: result2 } = await account2.contract.methods
         .get_signing_public_key()
         .simulate({ from: alice });
 

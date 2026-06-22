@@ -14,6 +14,7 @@
  */
 
 import { AztecAddress } from "@aztec/aztec.js/addresses";
+import { NO_FROM } from "@aztec/aztec.js/account";
 import { type ContractFunctionInteractionCallIntent } from "@aztec/aztec.js/authorization";
 import type { SponsoredFeePaymentMethod } from "@aztec/aztec.js/fee/testing";
 import { Fr } from "@aztec/aztec.js/fields";
@@ -58,7 +59,7 @@ export default class AccountComparisonBenchmark extends Benchmark {
     const [deployer] = accounts;
 
     // Deploy Token contract with deployer as minter
-    const token = await TokenContract.deployWithOpts(
+    const { contract: token } = await TokenContract.deployWithOpts(
       { wallet, method: "constructor_with_minter" },
       "BenchToken",
       "BT",
@@ -74,7 +75,7 @@ export default class AccountComparisonBenchmark extends Benchmark {
       { secretKey: Fr.random() },
     );
     // Register account with wallet for signing
-    wallet.registerCustomAccount(
+    await wallet.registerCustomAccount(
       immutablesAccount.address,
       immutablesAccount.account,
     );
@@ -171,7 +172,7 @@ export default class AccountComparisonBenchmark extends Benchmark {
       // --- Standard Account ---
       {
         interaction: {
-          caller: deployer,
+          caller: NO_FROM,
           action: standardAccountInitialize,
         },
         name: "Standard Account: deploy + initialize",

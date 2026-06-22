@@ -25,6 +25,7 @@
  */
 
 import { Fr } from "@aztec/aztec.js/fields";
+import { NO_FROM } from "@aztec/aztec.js/account";
 import type { Wallet } from "@aztec/aztec.js/wallet";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { deriveSigningKey } from "@aztec/stdlib/keys";
@@ -98,10 +99,10 @@ export async function deploySchnorrAccount(
     salt,
   );
 
-  // Deploy the account contract using AztecAddress.ZERO as sender
-  // (the deploy protocol handles the first-tx exception for account contracts)
+  // Self-deployment: use NO_FROM to bypass account contract mediation.
+  // The account contract doesn't exist yet, so it cannot sign its own deployment tx.
   const deployMethod = await accountManager.getDeployMethod();
-  await deployMethod.send({ from: AztecAddress.ZERO, fee: options?.fee });
+  await deployMethod.send({ from: NO_FROM, fee: options?.fee });
 
   // Get the deployed contract instance using our local artifact
   // Note: This will have the same address but uses our local artifact
@@ -152,7 +153,7 @@ export async function deployLocalSchnorrAccount(
   };
 
   // Deploy our local SchnorrAccount contract with the initializer
-  const contract = await SchnorrAccountContract.deploy(
+  const { contract } = await SchnorrAccountContract.deploy(
     wallet,
     signingPublicKey.x,
     signingPublicKey.y,

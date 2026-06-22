@@ -32,6 +32,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { Fr } from "@aztec/aztec.js/fields";
 import type { SponsoredFeePaymentMethod } from "@aztec/aztec.js/fee/testing";
+import { ContractInitializationStatus } from "@aztec/aztec.js/wallet";
 import { setupTestSuite, CustomEmbeddedWallet } from "./utils.js";
 
 import { deploySchnorrInitializerlessAccount } from "./schnorr-initializerless-account/index.js";
@@ -51,7 +52,7 @@ async function deployAndRegister(
     deployer,
     options,
   );
-  wallet.registerCustomAccount(result.address, result.account);
+  await wallet.registerCustomAccount(result.address, result.account);
   return result;
 }
 
@@ -83,14 +84,14 @@ describe("Initializerless Account", () => {
     } = await setupTestSuite());
 
     // Deploy Token contract with deployer as minter
-    token = await TokenContract.deployWithOpts(
+    ({ contract: token } = await TokenContract.deployWithOpts(
       { wallet, method: "constructor_with_minter" },
       "TestToken", // name
       "TST", // symbol
       18n, // decimals
       deployerAddress, // minter = deployer
       AztecAddress.ZERO, // upgrade_authority (not upgradeable)
-    ).send({ from: deployerAddress });
+    ).send({ from: deployerAddress }));
   });
 
   afterAll(async () => {
@@ -107,7 +108,7 @@ describe("Initializerless Account", () => {
       },
     );
 
-    const initialBalance = await token.methods
+    const { result: initialBalance } = await token.methods
       .balance_of_private(initializerlessAccount.address)
       .simulate({ from: initializerlessAccount.address });
     expect(initialBalance).toEqual(0n);
@@ -117,7 +118,7 @@ describe("Initializerless Account", () => {
       .mint_to_private(initializerlessAccount.address, MINT_AMOUNT)
       .send({ from: deployerAddress });
 
-    const finalBalance = await token.methods
+    const { result: finalBalance } = await token.methods
       .balance_of_private(initializerlessAccount.address)
       .simulate({ from: initializerlessAccount.address });
 
@@ -131,7 +132,7 @@ describe("Initializerless Account", () => {
       fee: { paymentMethod: sponsoredPaymentMethod },
     });
 
-    const initialBalance = await token.methods
+    const { result: initialBalance } = await token.methods
       .balance_of_private(standardAccount.contract.address)
       .simulate({ from: standardAccount.contract.address });
     expect(initialBalance).toEqual(0n);
@@ -142,7 +143,7 @@ describe("Initializerless Account", () => {
       .send({ from: deployerAddress });
 
     // Check private balance
-    const finalBalance = await token.methods
+    const { result: finalBalance } = await token.methods
       .balance_of_private(standardAccount.contract.address)
       .simulate({ from: standardAccount.contract.address });
 
@@ -169,7 +170,7 @@ describe("Initializerless Account", () => {
       .mint_to_private(unpublishedAccount.address, MINT_AMOUNT)
       .send({ from: deployerAddress });
 
-    const privateBalance = await token.methods
+    const { result: privateBalance } = await token.methods
       .balance_of_private(unpublishedAccount.address)
       .simulate({ from: unpublishedAccount.address });
     expect(privateBalance).toEqual(MINT_AMOUNT);
@@ -188,10 +189,10 @@ describe("Initializerless Account", () => {
         fee: { paymentMethod: sponsoredPaymentMethod },
       });
 
-    expect(tx.isMined()).toBe(true);
+    expect(tx.receipt.isMined()).toBe(true);
 
     // Verify tokens were transferred
-    const finalBalance = await token.methods
+    const { result: finalBalance } = await token.methods
       .balance_of_private(unpublishedAccount.address)
       .simulate({ from: unpublishedAccount.address });
 
@@ -232,9 +233,9 @@ describe("Initializerless Account", () => {
         fee: { paymentMethod: sponsoredPaymentMethod },
       });
 
-    expect(tx.isMined()).toBe(true);
+    expect(tx.receipt.isMined()).toBe(true);
 
-    const publicBalance = await token.methods
+    const { result: publicBalance } = await token.methods
       .balance_of_public(unpublishedAccount.address)
       .simulate({ from: deployerAddress });
 
@@ -264,12 +265,12 @@ describe("Initializerless Account", () => {
       .mint_to_private(standardAccount.contract.address, MINT_AMOUNT)
       .send({ from: deployerAddress });
 
-    const initialInitializerlessPrivateBalance = await token.methods
+    const { result: initialInitializerlessPrivateBalance } = await token.methods
       .balance_of_private(initializerlessAccount.address)
       .simulate({ from: initializerlessAccount.address });
     expect(initialInitializerlessPrivateBalance).toEqual(MINT_AMOUNT);
 
-    const initialStandardPrivateBalance = await token.methods
+    const { result: initialStandardPrivateBalance } = await token.methods
       .balance_of_private(standardAccount.contract.address)
       .simulate({ from: standardAccount.contract.address });
     expect(initialStandardPrivateBalance).toEqual(MINT_AMOUNT);
@@ -292,14 +293,14 @@ describe("Initializerless Account", () => {
         fee: { paymentMethod: sponsoredPaymentMethod },
       });
 
-    const tx1InitializerlessPrivateBalance = await token.methods
+    const { result: tx1InitializerlessPrivateBalance } = await token.methods
       .balance_of_private(initializerlessAccount.address)
       .simulate({ from: initializerlessAccount.address });
     expect(tx1InitializerlessPrivateBalance).toEqual(
       initialInitializerlessPrivateBalance - TRANSFER_TO_STANDARD,
     );
 
-    const tx1StandardPrivateBalance = await token.methods
+    const { result: tx1StandardPrivateBalance } = await token.methods
       .balance_of_private(standardAccount.contract.address)
       .simulate({ from: standardAccount.contract.address });
     expect(tx1StandardPrivateBalance).toEqual(
@@ -319,14 +320,14 @@ describe("Initializerless Account", () => {
         fee: { paymentMethod: sponsoredPaymentMethod },
       });
 
-    const tx2InitializerlessPrivateBalance = await token.methods
+    const { result: tx2InitializerlessPrivateBalance } = await token.methods
       .balance_of_private(initializerlessAccount.address)
       .simulate({ from: initializerlessAccount.address });
     expect(tx2InitializerlessPrivateBalance).toEqual(
       tx1InitializerlessPrivateBalance - TRANSFER_TO_PUBLIC,
     );
 
-    const tx2InitializerlessPublicBalance = await token.methods
+    const { result: tx2InitializerlessPublicBalance } = await token.methods
       .balance_of_public(initializerlessAccount.address)
       .simulate({ from: deployerAddress });
     expect(tx2InitializerlessPublicBalance).toEqual(TRANSFER_TO_PUBLIC);
@@ -344,14 +345,14 @@ describe("Initializerless Account", () => {
         fee: { paymentMethod: sponsoredPaymentMethod },
       });
 
-    const tx3InitializerlessPrivateBalance = await token.methods
+    const { result: tx3InitializerlessPrivateBalance } = await token.methods
       .balance_of_private(initializerlessAccount.address)
       .simulate({ from: initializerlessAccount.address });
     expect(tx3InitializerlessPrivateBalance).toEqual(
       tx2InitializerlessPrivateBalance + TRANSFER_TO_INITIALIZERLESS,
     );
 
-    const tx3StandardPrivateBalance = await token.methods
+    const { result: tx3StandardPrivateBalance } = await token.methods
       .balance_of_private(standardAccount.contract.address)
       .simulate({ from: standardAccount.contract.address });
     expect(tx3StandardPrivateBalance).toEqual(
@@ -371,19 +372,19 @@ describe("Initializerless Account", () => {
       MINT_AMOUNT + TRANSFER_TO_STANDARD - TRANSFER_TO_INITIALIZERLESS;
     const expectedStandardPublic = 0n;
 
-    const initializerlessPrivateBalance = await token.methods
+    const { result: initializerlessPrivateBalance } = await token.methods
       .balance_of_private(initializerlessAccount.address)
       .simulate({ from: initializerlessAccount.address });
 
-    const initializerlessPublicBalance = await token.methods
+    const { result: initializerlessPublicBalance } = await token.methods
       .balance_of_public(initializerlessAccount.address)
       .simulate({ from: deployerAddress });
 
-    const standardPrivateBalance = await token.methods
+    const { result: standardPrivateBalance } = await token.methods
       .balance_of_private(standardAccount.contract.address)
       .simulate({ from: standardAccount.contract.address });
 
-    const standardPublicBalance = await token.methods
+    const { result: standardPublicBalance } = await token.methods
       .balance_of_public(standardAccount.contract.address)
       .simulate({ from: deployerAddress });
 
@@ -406,7 +407,7 @@ describe("Initializerless Account", () => {
     );
 
     // Snapshot deployer balance before (may have accumulated from prior tests)
-    const deployerBalanceBefore = await token.methods
+    const { result: deployerBalanceBefore } = await token.methods
       .balance_of_private(deployerAddress)
       .simulate({ from: deployerAddress });
 
@@ -431,16 +432,16 @@ describe("Initializerless Account", () => {
         fee: { paymentMethod: sponsoredPaymentMethod },
       });
 
-    expect(tx.isMined()).toBe(true);
+    expect(tx.receipt.isMined()).toBe(true);
 
     // Verify balance of initializerless account
-    const initializerlessBalance = await token.methods
+    const { result: initializerlessBalance } = await token.methods
       .balance_of_private(initializerlessAccount.address)
       .simulate({ from: initializerlessAccount.address });
     expect(initializerlessBalance).toEqual(MINT_AMOUNT - TRANSFER_AMOUNT);
 
     // Verify deployer received the tokens
-    const deployerBalanceAfter = await token.methods
+    const { result: deployerBalanceAfter } = await token.methods
       .balance_of_private(deployerAddress)
       .simulate({ from: deployerAddress });
     expect(deployerBalanceAfter).toEqual(
@@ -471,7 +472,9 @@ describe("Initializerless Account", () => {
     );
 
     expect(publishedMetadata.isContractPublished).toBe(true);
-    expect(publishedMetadata.isContractInitialized).toBe(false);
+    expect(publishedMetadata.initializationStatus).toBe(
+      ContractInitializationStatus.UNINITIALIZED,
+    );
 
     // Check contract metadata for unpublished account
     const unpublishedMetadata = await wallet.getContractMetadata(
@@ -479,6 +482,8 @@ describe("Initializerless Account", () => {
     );
 
     expect(unpublishedMetadata.isContractPublished).toBe(false);
-    expect(unpublishedMetadata.isContractInitialized).toBe(false);
+    expect(unpublishedMetadata.initializationStatus).toBe(
+      ContractInitializationStatus.UNINITIALIZED,
+    );
   });
 });

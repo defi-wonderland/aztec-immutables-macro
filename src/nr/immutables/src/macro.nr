@@ -119,7 +119,7 @@ pub comptime fn immutables(s: TypeDefinition) -> Quoted {
                 // Load capsule data: [actual_salt, serialized_immutables[0], serialized_immutables[1], ...]
                 // Safety: capsule_data is verified against salt committed in contract address
                 let capsule_data: [Field; 1 + $serialized_len] = unsafe {
-                    aztec::oracle::capsules::load(address, $IMMUTABLES_SLOT)
+                    aztec::oracle::capsules::load(address, $IMMUTABLES_SLOT, aztec::protocol::address::AztecAddress::zero())
                         .unwrap_or_else(|| panic(f"Immutables not found in capsule for contract {address}"))
                 };
 
@@ -163,7 +163,7 @@ pub comptime fn immutables(s: TypeDefinition) -> Quoted {
                 let address = context.this_address();
 
                 // Load capsule data: [actual_salt, serialized_immutables[0], serialized_immutables[1], ...]
-                let capsule_data: [Field; 1 + $serialized_len] = aztec::oracle::capsules::load(address, $IMMUTABLES_SLOT)
+                let capsule_data: [Field; 1 + $serialized_len] = aztec::oracle::capsules::load(address, $IMMUTABLES_SLOT, aztec::protocol::address::AztecAddress::zero())
                     .unwrap_or_else(|| panic(f"Immutables not found in capsule for contract {address}"));
 
                 // Extract serialized immutables (skip first element which is actual_salt)
@@ -212,7 +212,7 @@ pub comptime fn immutables(s: TypeDefinition) -> Quoted {
                     "Immutables data does not match contract salt, refusing to store",
                 );
 
-                aztec::oracle::capsules::store(address, $IMMUTABLES_SLOT, capsule_data);
+                aztec::oracle::capsules::store(address, $IMMUTABLES_SLOT, capsule_data, aztec::protocol::address::AztecAddress::zero());
             }
         }
 
