@@ -193,6 +193,14 @@ export class SchnorrInitializerlessAccount implements AccountContract {
   }
 
   /**
+   * Returns undefined because this package currently commits immutables through
+   * the derived salt instead of Aztec v5's native immutablesHash field.
+   */
+  async getImmutablesHash(): Promise<undefined> {
+    return undefined;
+  }
+
+  /**
    * Returns the SchnorrInitializerlessAccount contract artifact.
    */
   async getContractArtifact(): Promise<ContractArtifact> {
@@ -251,10 +259,10 @@ export class SchnorrInitializerlessAuthWitnessProvider implements AuthWitnessPro
   async createAuthWit(messageHash: Fr): Promise<AuthWitness> {
     const schnorr = new Schnorr();
     const signature = await schnorr.constructSignature(
-      messageHash.toBuffer(),
+      messageHash,
       this.signingPrivateKey,
     );
-    return new AuthWitness(messageHash, [...signature.toBuffer()]);
+    return new AuthWitness(messageHash, signature.toLimbFields());
   }
 }
 
@@ -382,11 +390,7 @@ export async function deploySchnorrInitializerlessAccount(
   );
 
   const baseAccount = schnorrAccount.getAccount(completeAddress);
-  const account = new AccountWithSecretKey(
-    baseAccount,
-    secretKey,
-    instance.salt,
-  );
+  const account = new AccountWithSecretKey(baseAccount, secretKey);
 
   const contract = SchnorrInitializerlessAccountContract.at(address, wallet);
 

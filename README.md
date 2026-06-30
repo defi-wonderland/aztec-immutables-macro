@@ -337,7 +337,7 @@ The standard Schnorr account requires a deploy + initialize transaction that the
 | Standard Account: deploy + initialize | 516,258 gates | 8,636 gates |
 | Immutables Account | **No tx required** | **No tx required** |
 
-The constructor stores the signing key in `SinglePrivateImmutable` storage and delivers the note via `MessageDelivery.ONCHAIN_CONSTRAINED`. The initializerless account skips all of this — the key is committed in the contract address via salt.
+The constructor stores the signing key in `SinglePrivateImmutable` storage and delivers the note via `MessageDelivery::onchain_constrained()`. The initializerless account skips all of this — the key is committed in the contract address via salt.
 
 ### Per-transaction overhead
 

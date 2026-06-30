@@ -250,8 +250,8 @@ comptime fn generate_immutables_layout(s: TypeDefinition, serialized_len: Quoted
     // The compiler's abi_gen can only serialize literals, so we resolve it at comptime.
     let concrete_serialized_len: u32 = std::meta::unquote!(quote { $serialized_len });
 
-    let mut layout_struct_members = &[];
-    let mut layout_constructors = &[];
+    let mut layout_struct_members: [Quoted] = @[];
+    let mut layout_constructors: [Quoted] = @[];
     let mut field_index: u32 = 0;
     for field in s.fields_as_written() {
         let (name, _, _) = field;
@@ -329,7 +329,7 @@ comptime fn derive_deserialize_if_not_implemented(s: TypeDefinition) -> (Quoted,
         // and calling the fully-qualified Deserialize::deserialize on that slice.
         // We use a for loop instead of .map() because mutable variables cannot be
         // captured in lambdas in Noir comptime.
-        let mut offset_components: [Quoted] = &[];
+        let mut offset_components: [Quoted] = @[];
         let mut field_deserialization = quote {};
         for i in 0..params.len() {
             let (name, param_type, _) = params[i];

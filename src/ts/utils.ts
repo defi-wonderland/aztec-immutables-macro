@@ -84,7 +84,7 @@ export async function setupTestSuite(proverEnabled: boolean = false) {
   );
 
   const wallet: CustomEmbeddedWallet = await CustomEmbeddedWallet.create(node, {
-    pxeConfig: { dataDirectory, proverEnabled },
+    pxe: { dataDirectory, proverEnabled },
   });
 
   const accounts: AztecAddress[] =

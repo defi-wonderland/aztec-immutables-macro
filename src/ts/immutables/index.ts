@@ -339,17 +339,20 @@ export async function createImmutablesInstance(
       salt,
       publicKeys: options?.publicKeys ?? PublicKeys.default(),
       deployer: options?.deployer ?? AztecAddress.ZERO,
+      immutablesHash: Fr.ZERO,
     });
   } else {
     // No initializer path: initializationHash = Fr.ZERO
     const contractClass = await getContractClassFromArtifact(artifact);
     const rawInstance: ContractInstance = {
-      version: 1,
+      // Aztec v5 ContractInstance schema is version 2.
+      version: 2,
       salt,
       deployer: options?.deployer ?? AztecAddress.ZERO,
       currentContractClassId: contractClass.id,
       originalContractClassId: contractClass.id,
       initializationHash: Fr.ZERO,
+      immutablesHash: Fr.ZERO,
       publicKeys: options?.publicKeys ?? PublicKeys.default(),
     };
     const address = await computeContractAddressFromInstance(rawInstance);

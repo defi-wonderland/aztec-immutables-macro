@@ -90,7 +90,6 @@ describe("Initializerless Account", () => {
       "TST", // symbol
       18n, // decimals
       deployerAddress, // minter = deployer
-      AztecAddress.ZERO, // upgrade_authority (not upgradeable)
     ).send({ from: deployerAddress }));
   });
 

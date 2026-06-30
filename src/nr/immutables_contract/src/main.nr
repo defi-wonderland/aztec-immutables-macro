@@ -127,6 +127,7 @@ pub contract ImmutablesContract {
             instance.salt,
             "Immutables data does not match contract salt, refusing to store",
         );
+        // Safety: The capsule data was validated against the contract salt above.
         unsafe {
             aztec::oracle::capsules::store(
                 address,
